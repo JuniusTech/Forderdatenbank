@@ -146,7 +146,33 @@ Yazışma taslağı: `docs/correspondence/moysies-anfrage-de.md`
 
 ---
 
-## 8. Monitoring Gereksinimleri
+## 9. Bot-Schutz (Radware) — Stand 05.07.2026 Abend
+
+Automatisierter Zugriff (Playwright headless, requests, curl) kann mit **Radware CAPTCHA** blockiert werden.
+Symptom: Seitentitel „Radware Captcha Page“, HTML < 2 KB, keine `.card--fundingprogram`-Elemente.
+
+### Erkennung im Code
+- `ingest/captcha_detect.py` — prüft HTML auf Block-Marker
+- `crawl_runs.errors` — `{ "type": "bot_blocked", ... }`
+- Exit code **2** bei Bot-Block
+
+### Workarounds (Priorität)
+1. `--no-headless` — sichtbarer Browser, manuelles CAPTCHA-Lösen
+2. Cookie-Export aus manuellem Browser in Playwright-Context laden (TODO: Faz 1.1)
+3. Offiziellen API-Zugang via moysies anfragen (Faz 0 Schreiben)
+4. Backfill von erlaubter IP / Büronetzwerk ausführen
+
+### Offline-Tests (ohne Netzwerk)
+```bash
+cd packages/ai-worker
+source .venv/bin/activate
+pytest tests/ -q
+python -m ingest.catalog_crawler --mode fixture
+```
+
+---
+
+## 10. Monitoring Gereksinimleri
 
 - `crawl_runs.errors` boş değilse → alarm
 - `last_synced_at` > 48 saat eskiyse → uyarı
