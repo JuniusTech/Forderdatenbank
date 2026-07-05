@@ -37,9 +37,20 @@ python -m ingest.catalog_crawler --mode backfill
 
 ## Radware Bot Koruması
 
-Canlı sitede otomatik erişim Radware CAPTCHA ile engellenebilir. Çözümler:
-- `--no-headless` ile görünür tarayıcı
-- moysies'e resmi API yazışması (Faz 0)
+Canlı sitede otomatik erişim Radware CAPTCHA ile engellenebilir.
+
+### Önerilen smoke komutu
+```bash
+python -m ingest.catalog_crawler --mode smoke --no-headless --channel chrome --wait-for-human
+```
+1. Chrome açılır
+2. CAPTCHA'yı elle çöz
+3. Arama sonuçları görününce terminale dön, ENTER'a bas
+4. Crawler devam eder
+
+### Diğer seçenekler
+- `--cookies-file cookies.json` — tarayıcıdan export edilmiş cookie
+- moysies resmi API yazışması (Faz 0)
 - Detay: `docs/data-sources.md#bot-schutz`
 
 ## Modül yapısı

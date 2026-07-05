@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 
 from playwright.async_api import Page
 
-from db.config import CRAWL_DELAY_SECONDS, SEARCH_START_URL
+from db.config import BASE_URL, CRAWL_DELAY_SECONDS, SEARCH_START_URL
 from db.models import RawPage
 from db.session import get_session, init_db
 from ingest.captcha_detect import is_blocked_page
@@ -108,6 +108,9 @@ async def run_crawler(
     crawl_delay: float = CRAWL_DELAY_SECONDS,
     headless: bool = True,
     early_stop_after_empty_pages: int | None = None,
+    channel: str | None = None,
+    cookies_file: str | None = None,
+    wait_for_human: bool = False,
 ) -> None:
     init_db()
 
@@ -118,13 +121,25 @@ async def run_crawler(
         consecutive_empty_pages = 0
         list_page_num = 0
 
-        async with browser_session(headless=headless) as (_, context):
+        async with browser_session(
+            headless=headless,
+            channel=channel,
+            cookies_file=cookies_file,
+        ) as (_, context):
             page = await new_page(context)
 
             # İlk liste sayfası — rate limit yok (oturum başlangıcı)
             logger.info("Opening search: %s", SEARCH_START_URL)
             await page.goto(SEARCH_START_URL, wait_until="domcontentloaded", timeout=60_000)
             current_url = page.url
+
+            if wait_for_human:
+                print(
+                    "\n>>> Tarayıcıda CAPTCHA/Onay ekranını çöz.\n"
+                    ">>> Arama sonuçları görününce buraya dönüp ENTER'a bas.\n"
+                )
+                await asyncio.get_event_loop().run_in_executor(None, input)
+
             first_html = await page.content()
             await _assert_not_blocked(first_html, current_url, crawl_logger)
 
@@ -142,7 +157,7 @@ async def run_crawler(
                     crawl_logger.record_total_hits(total_hits)
                     logger.info("List page %s — total hits: %s", list_page_num, total_hits)
 
-                entries = parse_list_page(html, current_url, current_url)
+                entries = parse_list_page(html, BASE_URL, current_url)
                 crawl_logger.record_page_checked()
                 logger.info("List page %s — %s programs found", list_page_num, len(entries))
 
@@ -229,6 +244,21 @@ def main(argv: list[str] | None = None) -> int:
         help="Seconds between requests (robots.txt default: 30)",
     )
     parser.add_argument("--no-headless", action="store_true")
+    parser.add_argument(
+        "--channel",
+        default=None,
+        help="Sistem tarayıcısı kullan, örn: chrome (Playwright Chromium yerine)",
+    )
+    parser.add_argument(
+        "--cookies-file",
+        default=None,
+        help="Playwright cookie JSON dosyası (tarayıcıdan export)",
+    )
+    parser.add_argument(
+        "--wait-for-human",
+        action="store_true",
+        help="İlk sayfada dur; CAPTCHA çözülünce ENTER ile devam et",
+    )
     args = parser.parse_args(argv)
 
     if args.mode == "fixture":
@@ -258,6 +288,9 @@ def main(argv: list[str] | None = None) -> int:
                 crawl_delay=args.crawl_delay,
                 headless=not args.no_headless,
                 early_stop_after_empty_pages=early_stop,
+                channel=args.channel,
+                cookies_file=args.cookies_file,
+                wait_for_human=args.wait_for_human,
             )
         )
     except BotBlockedError as exc:

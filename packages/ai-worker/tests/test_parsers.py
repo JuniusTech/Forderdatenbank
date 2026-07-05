@@ -32,3 +32,18 @@ def test_content_hash_stable():
     h2 = compute_content_hash_from_html(DETAIL_PAGE_FIXTURE)
     assert h1 == h2
     assert len(h1) == 64
+
+
+def test_detail_url_without_leading_slash():
+    """Canlı sitede href 'FDB/Content/...' formunda gelir — /Suche/ altına yapışmamalı."""
+    html = """
+    <div class="card card--horizontal card--fundingprogram">
+      <div class="card--title">
+        <a href="FDB/Content/DE/Foerderprogramm/Bund/BMU/test.html">Test</a>
+      </div>
+      <dl class="document-info-fundingprogram"><dt>x</dt><dd>y</dd></dl>
+    </div>
+    """
+    entries = parse_list_page(html, BASE, LIST_URL)
+    assert entries[0].detail_url == f"{BASE}/FDB/Content/DE/Foerderprogramm/Bund/BMU/test.html"
+    assert "/Suche/FDB/" not in entries[0].detail_url

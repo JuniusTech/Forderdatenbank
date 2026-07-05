@@ -1,10 +1,10 @@
 import re
 from dataclasses import dataclass
-from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
 from ingest.selectors import CARD, CARD_TITLE_LINK
+from ingest.url_utils import normalize_detail_url
 
 
 @dataclass
@@ -37,7 +37,7 @@ def parse_list_page(html: str, base_url: str, current_url: str) -> list[ListEntr
             continue
 
         detail_path = link["href"]
-        detail_url = urljoin(current_url, detail_path)
+        detail_url = normalize_detail_url(detail_path, base_url)
         title = link.get_text(strip=True)
 
         dl = card.select_one("dl.document-info-fundingprogram")
