@@ -1,0 +1,32 @@
+2026-07-06 19:42:04 [INFO] Opening search: https://www.foerderdatenbank.de/SiteGlobals/FDB/Forms/Suche/Startseitensuche_Formular.html?submit=Suchen&filterCategories=FundingProgram&sortOrder=dateOfIssue_dt+desc
+
+>>> Tarayıcıda CAPTCHA/Onay ekranını çöz.
+>>> Arama sonuçları görününce buraya dönüp ENTER'a bas.
+
+node:events:487
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: write EPIPE
+    at afterWriteDispatched (node:internal/stream_base_commons:159:15)
+    at writeGeneric (node:internal/stream_base_commons:150:3)
+    at Socket._writeGeneric (node:net:1026:11)
+    at Socket._write (node:net:1038:8)
+    at writeOrBuffer (node:internal/streams/writable:570:12)
+    at _write (node:internal/streams/writable:499:10)
+    at Writable.write (node:internal/streams/writable:508:10)
+    at PipeTransport.send (/Users/sme/Projeler/JuniusTech/JuniusAppCo/Culinary/Forderdatenbank/packages/ai-worker/.venv/lib/python3.12/site-packages/playwright/driver/package/lib/coreBundle.js:34369:25)
+    at dispatcherConnection.onmessage (/Users/sme/Projeler/JuniusTech/JuniusAppCo/Culinary/Forderdatenbank/packages/ai-worker/.venv/lib/python3.12/site-packages/playwright/driver/package/lib/coreBundle.js:67801:59)
+    at DispatcherConnection.sendEvent (/Users/sme/Projeler/JuniusTech/JuniusAppCo/Culinary/Forderdatenbank/packages/ai-worker/.venv/lib/python3.12/site-packages/playwright/driver/package/lib/coreBundle.js:18281:14)
+Emitted 'error' event on Socket instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at process.processImmediate (node:internal/timers:472:9) {
+  errno: -32,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+
+Node.js v24.17.0

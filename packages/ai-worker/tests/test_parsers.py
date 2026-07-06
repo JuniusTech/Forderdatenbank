@@ -22,9 +22,30 @@ def test_parse_list_page():
 
 
 def test_pagination():
-    next_url = get_next_page_url(LIST_PAGE_FIXTURE, LIST_URL)
+    next_url = get_next_page_url(LIST_PAGE_FIXTURE, BASE, current_page=1)
     assert next_url is not None
     assert "gtp=2" in next_url
+    assert "/Suche/SiteGlobals" not in next_url
+
+
+def test_pagination_relative_href():
+    """Canlı sitede sayfa linki 'SiteGlobals/...' (başında / yok)."""
+    html = (
+        '<a href="SiteGlobals/FDB/Forms/Suche/Startseitensuche_Formular.html'
+        '?gtp=abc123&submit=Suchen&filterCategories=FundingProgram">2</a>'
+    )
+    url = get_next_page_url(html, BASE, current_page=1)
+    assert url is not None
+    assert url.startswith(f"{BASE}/SiteGlobals/FDB/Forms/Suche/")
+    assert "/Suche/SiteGlobals" not in url
+    assert "gtp=abc123" in url
+
+
+def test_pagination_page_number():
+    html = '<a href="/Suche?gtp=648009046">2</a>'
+    url = get_next_page_url(html, BASE, current_page=1)
+    assert url is not None
+    assert "gtp=" in url
 
 
 def test_content_hash_stable():

@@ -11,7 +11,6 @@ import asyncio
 import logging
 import sys
 from datetime import datetime, timezone
-from urllib.parse import urljoin
 
 from playwright.async_api import Page
 
@@ -22,8 +21,9 @@ from ingest.captcha_detect import is_blocked_page
 from ingest.crawl_logger import CrawlLogger
 from ingest.detail_fetcher import fetch_detail_page
 from ingest.list_parser import parse_list_page, parse_total_hits
+from ingest.pagination import get_next_page_url
 from ingest.rate_limiter import RateLimiter
-from ingest.selectors import LIST_REQUIRED_SELECTORS, PAGINATION_NEXT
+from ingest.selectors import LIST_REQUIRED_SELECTORS
 from ingest.session import browser_session, new_page
 
 logging.basicConfig(
@@ -63,16 +63,6 @@ async def _check_list_selectors(page: Page, url: str, crawl_logger: CrawlLogger)
             crawl_logger.record_error(
                 {"url": url, "selector": selector, "type": "selector_not_found"}
             )
-
-
-async def _get_next_page_url(page: Page, current_url: str) -> str | None:
-    next_link = page.locator(PAGINATION_NEXT)
-    if await next_link.count() == 0:
-        return None
-    href = await next_link.first.get_attribute("href")
-    if not href:
-        return None
-    return urljoin(current_url, href)
 
 
 def _upsert_raw_page(session, url: str, html: str, content_hash: str) -> str:
@@ -116,6 +106,7 @@ async def run_crawler(
 
     with get_session() as session:
         crawl_logger = CrawlLogger(session, mode=mode)
+        session.commit()
         rate_limiter = RateLimiter(delay_seconds=crawl_delay)
         details_fetched = 0
         consecutive_empty_pages = 0
@@ -187,7 +178,7 @@ async def run_crawler(
                     action = _upsert_raw_page(
                         session, entry.detail_url, result.html, result.content_hash
                     )
-                    session.flush()
+                    session.commit()
 
                     if action == "new":
                         crawl_logger.record_new()
@@ -215,10 +206,13 @@ async def run_crawler(
                             crawl_logger.finish(stopped_early_at_page=list_page_num)
                             return
 
-                next_url = await _get_next_page_url(page, current_url)
+                # Sayfalama: liste HTML'inden oku (page artık son detay sayfasında)
+                next_url = get_next_page_url(html, BASE_URL, list_page_num)
                 if not next_url:
-                    logger.info("No next page — crawl complete")
+                    logger.info("No next page — crawl complete (page %s)", list_page_num)
                     break
+
+                logger.info("Next list page: %s", next_url[:120])
 
                 await rate_limiter.wait()
                 await page.goto(next_url, wait_until="domcontentloaded", timeout=60_000)

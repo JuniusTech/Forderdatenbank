@@ -5,7 +5,7 @@ Python ETL worker: catalog crawler, enrichment, AI normalizer.
 ## Kurulum
 
 ```bash
-# 1. PostgreSQL
+# Yerel Docker (dev) — opsiyonel
 cd ../../infra && docker compose up -d
 
 # 2. Python env
@@ -15,8 +15,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
 
-# 3. Env
-cp ../../.env.example ../../.env   # port 15432
+# 3. Env — repo kökündeki .env
+cp ../../.env.example ../../.env
+
+# 4. Tabloları oluştur (ilk kurulum)
+python -m scripts.init_db
 ```
 
 ## Çalıştırma
