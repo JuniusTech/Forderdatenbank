@@ -2,6 +2,8 @@ const API = "";
 let currentPage = 1;
 let currentCompanyId = null;
 let lastMatches = [];
+let lastStats = null;
+let lastPageData = null;
 
 const PRESETS = {
   gastro: {
@@ -50,15 +52,42 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
 
+document.getElementById("lang-select").addEventListener("change", (e) => {
+  setLang(e.target.value);
+});
+
+function onLangChange() {
+  if (lastStats) updateStatsLine(lastStats);
+  if (lastPageData) renderPrograms(lastPageData);
+  if (lastMatches.length) renderMatches(lastMatches);
+  refreshFilterLabels();
+}
+
 async function loadStats() {
-  const stats = await api("/api/stats");
-  document.getElementById("stats-line").textContent =
-    `${stats.program_count.toLocaleString("de-DE")} Programme · ${stats.top_regions.slice(0, 3).map((r) => r.region).join(", ")} …`;
+  lastStats = await api("/api/stats");
+  updateStatsLine(lastStats);
+}
+
+function updateStatsLine(stats) {
+  const locale = uiLang === "de" ? "de-DE" : uiLang === "tr" ? "tr-TR" : "en-US";
+  document.getElementById("stats-line").textContent = t("catalog.stats", {
+    count: stats.program_count.toLocaleString(locale),
+    regions: stats.top_regions.slice(0, 3).map((r) => r.region).join(", "),
+  });
+}
+
+function refreshFilterLabels() {
+  const regionSel = document.getElementById("filter-region");
+  const typeSel = document.getElementById("filter-type");
+  if (regionSel.options[0]) regionSel.options[0].textContent = t("catalog.allRegions");
+  if (typeSel.options[0]) typeSel.options[0].textContent = t("catalog.allTypes");
 }
 
 async function loadFilters() {
   const [regions, types] = await Promise.all([api("/api/regions"), api("/api/funding-types")]);
-  [document.getElementById("filter-region"), document.getElementById("profile-region")].forEach((sel) => {
+  const regionSelects = [document.getElementById("filter-region"), document.getElementById("profile-region")];
+  regionSelects.forEach((sel) => {
+    while (sel.options.length > 1) sel.remove(1);
     regions.forEach((r) => {
       const opt = document.createElement("option");
       opt.value = r;
@@ -66,23 +95,28 @@ async function loadFilters() {
       sel.appendChild(opt);
     });
   });
-  types.forEach((t) => {
+  while (document.getElementById("filter-type").options.length > 1) {
+    document.getElementById("filter-type").remove(1);
+  }
+  types.forEach((typeName) => {
     const opt = document.createElement("option");
-    opt.value = t;
-    opt.textContent = t;
+    opt.value = typeName;
+    opt.textContent = typeName;
     document.getElementById("filter-type").appendChild(opt);
   });
+  refreshFilterLabels();
 }
 
 function renderPrograms(data) {
+  lastPageData = data;
   const list = document.getElementById("program-list");
   list.innerHTML = data.items
     .map(
       (p) => `
     <article class="program-card" data-id="${p.id}">
       <h3>${escapeHtml(p.title)}</h3>
-      <div class="meta">${escapeHtml(p.region || "—")} · ${escapeHtml(p.provider_name || "Anbieter n/a")}</div>
-      <div class="tags">${(p.funding_type || []).slice(0, 3).map((t) => `<span class="tag accent">${escapeHtml(t)}</span>`).join("")}</div>
+      <div class="meta">${escapeHtml(p.region || "—")} · ${escapeHtml(p.provider_name || t("catalog.providerNa"))}</div>
+      <div class="tags">${(p.funding_type || []).slice(0, 3).map((tag) => `<span class="tag accent">${escapeHtml(tag)}</span>`).join("")}</div>
     </article>`
     )
     .join("");
@@ -90,7 +124,11 @@ function renderPrograms(data) {
     card.addEventListener("click", () => openProgram(card.dataset.id));
   });
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
-  document.getElementById("page-info").textContent = `Seite ${data.page} / ${totalPages} (${data.total} Treffer)`;
+  document.getElementById("page-info").textContent = t("catalog.page", {
+    page: data.page,
+    totalPages,
+    total: data.total,
+  });
 }
 
 async function searchPrograms(page = 1) {
@@ -106,7 +144,7 @@ async function searchPrograms(page = 1) {
     if (funding_type) params.set("funding_type", funding_type);
     renderPrograms(await api(`/api/programs?${params}`));
   } catch (err) {
-    list.innerHTML = `<div class="card">Katalog konnte nicht geladen werden. Server neu starten (PORT=3010).</div>`;
+    list.innerHTML = `<div class="card">${escapeHtml(t("catalog.loadError"))}</div>`;
     console.error(err);
   }
 }
@@ -116,9 +154,9 @@ async function openProgram(id) {
   document.getElementById("modal-body").innerHTML = `
     <h2>${escapeHtml(p.title)}</h2>
     <div class="meta">${escapeHtml(p.region || "")} · ${escapeHtml(p.provider_name || "")}</div>
-    <div class="tags">${(p.funding_type || []).map((t) => `<span class="tag accent">${escapeHtml(t)}</span>`).join("")}</div>
+    <div class="tags">${(p.funding_type || []).map((tag) => `<span class="tag accent">${escapeHtml(tag)}</span>`).join("")}</div>
     <div class="body-text">${escapeHtml(p.raw_text.slice(0, 2500))}</div>
-    ${p.application_url ? `<p><a href="${escapeHtml(p.application_url)}" target="_blank" rel="noopener">Zur Antragsseite →</a></p>` : ""}
+    ${p.application_url ? `<p><a href="${escapeHtml(p.application_url)}" target="_blank" rel="noopener">${escapeHtml(t("catalog.applyLink"))}</a></p>` : ""}
     <small style="color:var(--muted)">${escapeHtml(p.license_attribution)}</small>`;
   document.getElementById("program-modal").showModal();
 }
@@ -151,7 +189,10 @@ document.getElementById("company-form").addEventListener("submit", async (e) => 
   const company = await api("/api/companies", { method: "POST", body: JSON.stringify(body) });
   currentCompanyId = company.id;
   document.getElementById("run-match").disabled = false;
-  document.getElementById("match-subtitle").textContent = `Profil gespeichert: ${company.name} (${company.region})`;
+  document.getElementById("match-subtitle").textContent = t("profile.saved", {
+    name: company.name,
+    region: company.region,
+  });
   switchTab("matches");
 });
 
@@ -163,16 +204,17 @@ document.getElementById("run-match").addEventListener("click", async () => {
     lastMatches = await api(`/api/companies/${currentCompanyId}/match`, { method: "POST" });
     renderMatches(lastMatches);
   } catch (err) {
-    document.getElementById("match-list").innerHTML = `<div class="card">Fehler: ${escapeHtml(err.message)}</div>`;
+    document.getElementById("match-list").innerHTML = `<div class="card">${escapeHtml(t("matches.error", { msg: err.message }))}</div>`;
   } finally {
     loading.classList.add("hidden");
   }
 });
 
 function renderMatches(matches) {
+  lastMatches = matches;
   const list = document.getElementById("match-list");
   if (!matches.length) {
-    list.innerHTML = `<div class="card">Keine Treffer. Profil anpassen oder andere Region wählen.</div>`;
+    list.innerHTML = `<div class="card">${escapeHtml(t("matches.none"))}</div>`;
     return;
   }
   list.innerHTML = matches
@@ -188,18 +230,18 @@ function renderMatches(matches) {
         <div class="score">${m.score}%</div>
       </div>
       <details class="why-box" open>
-        <summary>Warum passend?</summary>
+        <summary>${escapeHtml(t("matches.why"))}</summary>
         <div class="tags">
-          ${(m.matched_terms || []).map((t) => `<span class="tag accent">${escapeHtml(t)}</span>`).join("")}
+          ${(m.matched_terms || []).map((term) => `<span class="tag accent">${escapeHtml(term)}</span>`).join("")}
           ${Object.entries(m.score_breakdown)
-            .filter(([k]) => !["total"].includes(k))
+            .filter(([k]) => k !== "total")
             .map(([k, v]) => `<span class="tag">${escapeHtml(k)}: ${escapeHtml(v.detail || "")}</span>`)
             .join("")}
         </div>
       </details>
       <div class="match-actions">
-        <button class="primary draft-btn" data-match-id="${m.id}" data-title="${escapeHtml(m.program.title)}">Entwurf erstellen</button>
-        <button class="ghost detail-btn" data-id="${m.program.id}">Details</button>
+        <button class="primary draft-btn" data-match-id="${m.id}" data-title="${escapeHtml(m.program.title)}">${escapeHtml(t("matches.draftBtn"))}</button>
+        <button class="ghost detail-btn" data-id="${m.program.id}">${escapeHtml(t("matches.detailsBtn"))}</button>
       </div>
       <p class="meta">${escapeHtml(m.disclaimer)}</p>
     </article>`
@@ -215,7 +257,7 @@ function renderMatches(matches) {
       startDraftStream(btn.dataset.matchId, btn.dataset.title);
     });
   });
-  document.getElementById("match-subtitle").textContent = `${matches.length} passende Programme (Beraterprüfung erforderlich)`;
+  document.getElementById("match-subtitle").textContent = t("matches.found", { count: matches.length });
 }
 
 async function startDraftStream(matchId, programTitle) {
@@ -225,11 +267,11 @@ async function startDraftStream(matchId, programTitle) {
   const meta = document.getElementById("draft-meta");
   panel.classList.remove("hidden");
   document.getElementById("draft-program-title").textContent = programTitle;
-  document.getElementById("draft-company").textContent = "Entwurf wird generiert…";
+  document.getElementById("draft-company").textContent = t("draft.generating");
   document.getElementById("draft-disclaimer").textContent = "";
   stream.textContent = "";
   meta.textContent = "";
-  document.getElementById("draft-subtitle").textContent = "KI-/Regelbasiertes Entwurfsmodul läuft…";
+  document.getElementById("draft-subtitle").textContent = t("draft.running");
 
   try {
     const res = await fetch(`/api/matches/${matchId}/draft/stream`);
@@ -256,15 +298,15 @@ async function startDraftStream(matchId, programTitle) {
     if (fullDraft) {
       document.getElementById("draft-company").textContent = fullDraft.project_title || programTitle;
       document.getElementById("draft-disclaimer").textContent = fullDraft.disclaimer || "";
-      meta.innerHTML = `<strong>Status:</strong> ${escapeHtml(fullDraft.status)} · 
-        <strong>Quelle:</strong> ${escapeHtml(fullDraft.generated_by || "template")}`;
+      meta.innerHTML = `<strong>${escapeHtml(t("draft.status"))}:</strong> ${escapeHtml(fullDraft.status)} · 
+        <strong>${escapeHtml(t("draft.source"))}:</strong> ${escapeHtml(fullDraft.generated_by || "template")}`;
       if (fullDraft.missing_fields?.length) {
-        meta.innerHTML += `<br><strong>Offen:</strong> ${fullDraft.missing_fields.map(escapeHtml).join(", ")}`;
+        meta.innerHTML += `<br><strong>${escapeHtml(t("draft.open"))}:</strong> ${fullDraft.missing_fields.map(escapeHtml).join(", ")}`;
       }
-      document.getElementById("draft-subtitle").textContent = "ENTWURF — nicht zur Einreichung freigegeben";
+      document.getElementById("draft-subtitle").textContent = t("draft.done");
     }
   } catch (err) {
-    stream.textContent = `Fehler beim Entwurf: ${err.message}`;
+    stream.textContent = t("draft.error", { msg: err.message });
   }
 }
 
@@ -277,6 +319,8 @@ function escapeHtml(s) {
 }
 
 (async function init() {
+  applyI18n();
+  document.getElementById("lang-select").value = uiLang;
   await loadStats();
   await loadFilters();
   await searchPrograms(1);

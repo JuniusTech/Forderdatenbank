@@ -41,7 +41,16 @@ body {
   display: grid; place-items: center; font-weight: 800; color: #0b1018;
 }
 
-nav { display: flex; gap: 0.5rem; }
+nav { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.topbar-right { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.lang-switch {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.85rem; color: var(--muted);
+}
+.lang-switch select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 0.4rem 0.6rem;
+}
 .nav-btn {
   background: transparent; border: 1px solid var(--border); color: var(--text);
   padding: 0.55rem 1rem; border-radius: 999px; cursor: pointer;

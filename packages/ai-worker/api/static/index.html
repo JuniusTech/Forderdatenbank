@@ -12,89 +12,99 @@
       <span class="logo">CF</span>
       <div>
         <strong>Culinary Funding OS</strong>
-        <small>Förderprogramm-Matching Demo</small>
+        <small data-i18n="meta.subtitle">Förderprogramm-Matching Demo</small>
       </div>
     </div>
-    <nav>
-      <button class="nav-btn active" data-tab="catalog">Katalog</button>
-      <button class="nav-btn" data-tab="profile">Unternehmensprofil</button>
-      <button class="nav-btn" data-tab="matches">Treffer</button>
-      <button class="nav-btn" data-tab="draft">Antragsentwurf</button>
-    </nav>
+    <div class="topbar-right">
+      <label class="lang-switch">
+        <span data-i18n="lang.label">UI-Sprache</span>
+        <select id="lang-select" aria-label="Language">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="tr">Türkçe</option>
+        </select>
+      </label>
+      <nav>
+        <button class="nav-btn active" data-tab="catalog" data-i18n="nav.catalog">Katalog</button>
+        <button class="nav-btn" data-tab="profile" data-i18n="nav.profile">Unternehmensprofil</button>
+        <button class="nav-btn" data-tab="matches" data-i18n="nav.matches">Treffer</button>
+        <button class="nav-btn" data-tab="draft" data-i18n="nav.draft">Antragsentwurf</button>
+      </nav>
+    </div>
   </header>
 
-  <div class="disclaimer">
+  <div class="disclaimer" data-i18n="disclaimer">
     Unverbindliche Vorauswahl — endgültige Entscheidung bei der Förderstelle. Datenquelle: Förderdatenbank (CC BY-ND 4.0 DE).
   </div>
 
   <main>
   <section id="tab-catalog" class="tab active">
     <div class="hero">
-      <h1>2.488 Förderprogramme durchsuchbar</h1>
-      <p id="stats-line">Lade Statistiken…</p>
+      <h1 data-i18n="catalog.title">2.488 Förderprogramme durchsuchbar</h1>
+      <p id="stats-line" data-i18n="catalog.statsLoading">Lade Statistiken…</p>
     </div>
     <div class="filters card">
-      <input id="search-q" type="search" placeholder="Suche nach Titel oder Stichwort…" />
-      <select id="filter-region"><option value="">Alle Regionen</option></select>
-      <select id="filter-type"><option value="">Alle Förderarten</option></select>
-      <button id="search-btn" class="primary">Suchen</button>
+      <input id="search-q" type="search" data-i18n="catalog.searchPlaceholder" data-i18n-attr="placeholder" placeholder="Suche nach Titel oder Stichwort…" />
+      <select id="filter-region"><option value="" data-i18n="catalog.allRegions">Alle Regionen</option></select>
+      <select id="filter-type"><option value="" data-i18n="catalog.allTypes">Alle Förderarten</option></select>
+      <button id="search-btn" class="primary" data-i18n="catalog.search">Suchen</button>
     </div>
     <div id="program-list" class="program-grid"></div>
     <div class="pager">
-      <button id="prev-page">Zurück</button>
+      <button id="prev-page" data-i18n="catalog.prev">Zurück</button>
       <span id="page-info"></span>
-      <button id="next-page">Weiter</button>
+      <button id="next-page" data-i18n="catalog.next">Weiter</button>
     </div>
   </section>
 
   <section id="tab-profile" class="tab">
     <div class="split">
       <form id="company-form" class="card">
-        <h2>Unternehmensprofil</h2>
-        <label>Name<input name="name" required placeholder="z.B. Müller Gastronomie GmbH" /></label>
-        <label>Bundesland / Region
+        <h2 data-i18n="profile.title">Unternehmensprofil</h2>
+        <label><span data-i18n="profile.name">Name</span><input name="name" required data-i18n="profile.namePh" data-i18n-attr="placeholder" placeholder="z.B. Müller Gastronomie GmbH" /></label>
+        <label><span data-i18n="profile.region">Bundesland / Region</span>
           <select name="region" required id="profile-region"></select>
         </label>
-        <label>Branche<input name="sector" placeholder="z.B. Gastronomie, Lebensmittel, Hotellerie" /></label>
-        <label>Mitarbeiter<input name="employees" type="number" min="1" placeholder="z.B. 45" /></label>
-        <label>Unternehmensgröße
+        <label><span data-i18n="profile.sector">Branche</span><input name="sector" data-i18n="profile.sectorPh" data-i18n-attr="placeholder" placeholder="z.B. Gastronomie, Lebensmittel, Hotellerie" /></label>
+        <label><span data-i18n="profile.employees">Mitarbeiter</span><input name="employees" type="number" min="1" data-i18n="profile.employeesPh" data-i18n-attr="placeholder" placeholder="z.B. 45" /></label>
+        <label><span data-i18n="profile.size">Unternehmensgröße</span>
           <select name="company_size">
-            <option value="">Automatisch (aus Mitarbeitern)</option>
-            <option value="klein">Klein</option>
-            <option value="mittel">Mittel</option>
-            <option value="gross">Groß</option>
+            <option value="" data-i18n="profile.sizeAuto">Automatisch (aus Mitarbeitern)</option>
+            <option value="klein" data-i18n="profile.sizeSmall">Klein</option>
+            <option value="mittel" data-i18n="profile.sizeMedium">Mittel</option>
+            <option value="gross" data-i18n="profile.sizeLarge">Groß</option>
           </select>
         </label>
-        <label>Investitionsbedarf<textarea name="investment_need" rows="3" placeholder="z.B. Küchenmodernisierung, Digitalisierung, Energieeffizienz"></textarea></label>
+        <label><span data-i18n="profile.investment">Investitionsbedarf</span><textarea name="investment_need" rows="3" data-i18n="profile.investmentPh" data-i18n-attr="placeholder" placeholder="z.B. Küchenmodernisierung, Digitalisierung, Energieeffizienz"></textarea></label>
         <div class="row">
-          <button type="submit" class="primary">Profil speichern</button>
-          <button type="button" id="demo-restaurant-btn" class="ghost">Demo-Restaurant Berlin</button>
-          <button type="button" id="demo-btn" class="ghost">NRW Gastronomie</button>
+          <button type="submit" class="primary" data-i18n="profile.save">Profil speichern</button>
+          <button type="button" id="demo-restaurant-btn" class="ghost" data-i18n="profile.demoBerlin">Demo-Restaurant Berlin</button>
+          <button type="button" id="demo-btn" class="ghost" data-i18n="profile.demoNrw">NRW Gastronomie</button>
         </div>
       </form>
       <div class="card presets">
-        <h3>Demo-Szenarien</h3>
-        <button class="preset" data-preset="gastro">Gastronomie KMU (NRW)</button>
-        <button class="preset" data-preset="hotel">Hotel Mittelstand (Bayern)</button>
-        <button class="preset" data-preset="food">Lebensmittel Startup (Berlin)</button>
+        <h3 data-i18n="profile.presets">Demo-Szenarien</h3>
+        <button class="preset" data-preset="gastro" data-i18n="profile.presetGastro">Gastronomie KMU (NRW)</button>
+        <button class="preset" data-preset="hotel" data-i18n="profile.presetHotel">Hotel Mittelstand (Bayern)</button>
+        <button class="preset" data-preset="food" data-i18n="profile.presetFood">Lebensmittel Startup (Berlin)</button>
       </div>
     </div>
   </section>
 
   <section id="tab-matches" class="tab">
     <div class="card match-header">
-      <h2>Passende Förderprogramme</h2>
-      <p id="match-subtitle">Profil speichern und Matching starten.</p>
-      <button id="run-match" class="primary" disabled>Matching starten</button>
+      <h2 data-i18n="matches.title">Passende Förderprogramme</h2>
+      <p id="match-subtitle" data-i18n="matches.subtitle">Profil speichern und Matching starten.</p>
+      <button id="run-match" class="primary" disabled data-i18n="matches.run">Matching starten</button>
     </div>
-    <div id="match-loading" class="loading hidden">Matching läuft…</div>
+    <div id="match-loading" class="loading hidden" data-i18n="matches.loading">Matching läuft…</div>
     <div id="match-list" class="match-grid"></div>
   </section>
 
   <section id="tab-draft" class="tab">
     <div class="card draft-header">
-      <h2>Antragsentwurf (ENTWURF)</h2>
-      <p id="draft-subtitle">Wählen Sie bei den Treffern „Entwurf erstellen“.</p>
+      <h2 data-i18n="draft.title">Antragsentwurf (ENTWURF)</h2>
+      <p id="draft-subtitle" data-i18n="draft.subtitle">Wählen Sie bei den Treffern „Entwurf erstellen“.</p>
     </div>
     <div id="draft-panel" class="card draft-panel hidden">
       <div class="watermark">ENTWURF</div>
@@ -114,6 +124,7 @@
     </article>
   </dialog>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
