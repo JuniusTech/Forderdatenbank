@@ -19,7 +19,7 @@ def main() -> None:
         ).fetchall()
         print("Mevcut tablolar:", [t[0] for t in tables])
 
-        for name in ("raw_pages", "crawl_runs", "funding_programs", "xml_ingest_runs"):
+        for name in ("raw_pages", "crawl_runs", "funding_programs", "xml_ingest_runs", "companies", "matches"):
             count = s.execute(text(f"SELECT COUNT(*) FROM {name}")).scalar()
             print(f"  {name}: {count} satır")
 

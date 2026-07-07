@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Culinary Funding OS — Demo</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">CF</span>
+      <div>
+        <strong>Culinary Funding OS</strong>
+        <small>Förderprogramm-Matching Demo</small>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-btn active" data-tab="catalog">Katalog</button>
+      <button class="nav-btn" data-tab="profile">Unternehmensprofil</button>
+      <button class="nav-btn" data-tab="matches">Treffer</button>
+    </nav>
+  </header>
+
+  <div class="disclaimer">
+    Unverbindliche Vorauswahl — endgültige Entscheidung bei der Förderstelle. Datenquelle: Förderdatenbank (CC BY-ND 4.0 DE).
+  </div>
+
+  <main>
+  <section id="tab-catalog" class="tab active">
+    <div class="hero">
+      <h1>2.488 Förderprogramme durchsuchbar</h1>
+      <p id="stats-line">Lade Statistiken…</p>
+    </div>
+    <div class="filters card">
+      <input id="search-q" type="search" placeholder="Suche nach Titel oder Stichwort…" />
+      <select id="filter-region"><option value="">Alle Regionen</option></select>
+      <select id="filter-type"><option value="">Alle Förderarten</option></select>
+      <button id="search-btn" class="primary">Suchen</button>
+    </div>
+    <div id="program-list" class="program-grid"></div>
+    <div class="pager">
+      <button id="prev-page">Zurück</button>
+      <span id="page-info"></span>
+      <button id="next-page">Weiter</button>
+    </div>
+  </section>
+
+  <section id="tab-profile" class="tab">
+    <div class="split">
+      <form id="company-form" class="card">
+        <h2>Unternehmensprofil</h2>
+        <label>Name<input name="name" required placeholder="z.B. Müller Gastronomie GmbH" /></label>
+        <label>Bundesland / Region
+          <select name="region" required id="profile-region"></select>
+        </label>
+        <label>Branche<input name="sector" placeholder="z.B. Gastronomie, Lebensmittel, Hotellerie" /></label>
+        <label>Mitarbeiter<input name="employees" type="number" min="1" placeholder="z.B. 45" /></label>
+        <label>Unternehmensgröße
+          <select name="company_size">
+            <option value="">Automatisch (aus Mitarbeitern)</option>
+            <option value="klein">Klein</option>
+            <option value="mittel">Mittel</option>
+            <option value="gross">Groß</option>
+          </select>
+        </label>
+        <label>Investitionsbedarf<textarea name="investment_need" rows="3" placeholder="z.B. Küchenmodernisierung, Digitalisierung, Energieeffizienz"></textarea></label>
+        <div class="row">
+          <button type="submit" class="primary">Profil speichern</button>
+          <button type="button" id="demo-btn" class="ghost">Demo-Profil laden</button>
+        </div>
+      </form>
+      <div class="card presets">
+        <h3>Demo-Szenarien</h3>
+        <button class="preset" data-preset="gastro">Gastronomie KMU (NRW)</button>
+        <button class="preset" data-preset="hotel">Hotel Mittelstand (Bayern)</button>
+        <button class="preset" data-preset="food">Lebensmittel Startup (Berlin)</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-matches" class="tab">
+    <div class="card match-header">
+      <h2>Passende Förderprogramme</h2>
+      <p id="match-subtitle">Profil speichern und Matching starten.</p>
+      <button id="run-match" class="primary" disabled>Matching starten</button>
+    </div>
+    <div id="match-list" class="match-grid"></div>
+  </section>
+  </main>
+
+  <dialog id="program-modal">
+    <article class="modal-content card">
+      <button class="close-modal" type="button">×</button>
+      <div id="modal-body"></div>
+    </article>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

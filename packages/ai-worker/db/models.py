@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Integer, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -93,3 +93,46 @@ class XmlIngestRun(Base):
     skipped_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     errors: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    region: Mapped[str] = mapped_column(Text, nullable=False)
+    sector: Mapped[str | None] = mapped_column(Text)
+    employees: Mapped[int | None] = mapped_column(Integer)
+    company_size: Mapped[str | None] = mapped_column(Text)
+    investment_need: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class Match(Base):
+    __tablename__ = "matches"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    program_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("funding_programs.id", ondelete="CASCADE"), nullable=False
+    )
+    score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
+    score_breakdown: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    human_review_required: Mapped[bool] = mapped_column(default=True, nullable=False)
+    disclaimer: Mapped[str] = mapped_column(
+        Text,
+        default="Die endgültige Entscheidung liegt bei der zuständigen Förderstelle.",
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
