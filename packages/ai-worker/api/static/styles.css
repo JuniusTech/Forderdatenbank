@@ -133,6 +133,8 @@ button.ghost {
 .tag.status-laufend { color: #3ecf8e; border-color: rgba(62, 207, 142, 0.55); background: rgba(62, 207, 142, 0.08); }
 .tag.status-active { color: #6eb5ff; border-color: rgba(110, 181, 255, 0.45); background: rgba(110, 181, 255, 0.08); }
 .tag.status-closed { color: #f07178; border-color: rgba(240, 113, 120, 0.45); background: rgba(240, 113, 120, 0.08); }
+.live-check.live-ok { color: var(--accent); }
+.live-check.live-warn { color: #f0a878; }
 
 .score {
   font-size: 1.4rem; font-weight: 800; color: var(--accent);

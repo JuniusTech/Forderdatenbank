@@ -19,6 +19,7 @@ from ai.draft.generator import generate_draft
 from db.config import API_PORT
 from db.models import Application, Company, FundingProgram, Match
 from db.session import get_session, init_db
+from matcher.live_verify import verify_match_results
 from matcher.pipeline import DISCLAIMER, match_company_to_programs
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -297,10 +298,12 @@ def run_match(company_id: uuid.UUID, min_score: float = Query(35, ge=0, le=100))
             session.scalars(select(FundingProgram).where(_open_program_filter())).all()
         )
         results = match_company_to_programs(company, programs, min_score=min_score, limit=8)
+        verified = verify_match_results(results)
+        included = [o.result for o in verified if o.included]
 
         session.execute(Match.__table__.delete().where(Match.company_id == company_id))
         out: list[MatchOut] = []
-        for result in results:
+        for result in included:
             match = Match(
                 company_id=company.id,
                 program_id=result.program.id,

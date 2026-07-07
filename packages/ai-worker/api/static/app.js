@@ -241,10 +241,11 @@ function renderMatches(matches) {
         <div class="tags">
           ${(m.matched_terms || []).map((term) => `<span class="tag accent">${escapeHtml(term)}</span>`).join("")}
           ${Object.entries(m.score_breakdown)
-            .filter(([k]) => k !== "total")
+            .filter(([k]) => k !== "total" && k !== "live_check")
             .map(([k, v]) => `<span class="tag">${escapeHtml(k)}: ${escapeHtml(v.detail || "")}</span>`)
             .join("")}
         </div>
+        ${m.score_breakdown?.live_check && !m.score_breakdown.live_check.skipped ? `<p class="meta live-check ${m.score_breakdown.live_check.ok ? "live-ok" : "live-warn"}">${escapeHtml(t("matches.liveCheck"))}: ${escapeHtml(m.score_breakdown.live_check.detail || "")}${m.score_breakdown.live_check.cached ? ` (${escapeHtml(t("matches.liveCached"))})` : ""}</p>` : ""}
       </details>
       <div class="match-actions">
         <button class="primary draft-btn" data-match-id="${m.id}" data-title="${escapeHtml(m.program.title)}">${escapeHtml(t("matches.draftBtn"))}</button>
