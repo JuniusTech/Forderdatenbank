@@ -1,3 +1,8 @@
+```bash
+python -m scripts.enrich_unknown_status --limit 50 --dry-run --ai
+# memnunsan:
+python -m scripts.enrich_unknown_status --limit 50 --apply --ai
+```
 
 ## Ne yapmalısın?
 
