@@ -178,8 +178,9 @@ def list_programs(
                 .limit(page_size)
             ).all()
         )
+        items = [_program_summary(p).model_dump() for p in rows]
     return {
-        "items": [_program_summary(p).model_dump() for p in rows],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,

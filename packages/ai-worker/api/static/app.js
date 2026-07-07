@@ -95,14 +95,20 @@ function renderPrograms(data) {
 
 async function searchPrograms(page = 1) {
   currentPage = page;
-  const params = new URLSearchParams({ page, page_size: 12 });
-  const q = document.getElementById("search-q").value;
-  const region = document.getElementById("filter-region").value;
-  const funding_type = document.getElementById("filter-type").value;
-  if (q) params.set("q", q);
-  if (region) params.set("region", region);
-  if (funding_type) params.set("funding_type", funding_type);
-  renderPrograms(await api(`/api/programs?${params}`));
+  const list = document.getElementById("program-list");
+  try {
+    const params = new URLSearchParams({ page, page_size: 12 });
+    const q = document.getElementById("search-q").value;
+    const region = document.getElementById("filter-region").value;
+    const funding_type = document.getElementById("filter-type").value;
+    if (q) params.set("q", q);
+    if (region) params.set("region", region);
+    if (funding_type) params.set("funding_type", funding_type);
+    renderPrograms(await api(`/api/programs?${params}`));
+  } catch (err) {
+    list.innerHTML = `<div class="card">Katalog konnte nicht geladen werden. Server neu starten (PORT=3010).</div>`;
+    console.error(err);
+  }
 }
 
 async function openProgram(id) {
