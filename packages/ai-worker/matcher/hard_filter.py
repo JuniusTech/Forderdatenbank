@@ -54,8 +54,8 @@ def _is_sme(company: Company) -> bool:
 
 
 def passes_hard_filter(company: Company, program: FundingProgram) -> tuple[bool, str]:
-    if program.status != "active":
-        return False, "Programm nicht aktiv"
+    if program.status == "closed":
+        return False, "Programm geschlossen — keine Antragstellung"
 
     if not _region_passes(company.region, program.region):
         return False, f"Region passt nicht ({program.region})"

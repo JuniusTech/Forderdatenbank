@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ingest.deadline_parser import scan_program_fields
 from ingest.link_resolver import LinkResolver
 from ingest.xml_utils import (
     build_raw_text,
@@ -14,6 +15,7 @@ from ingest.xml_utils import (
     extract_classified_links,
     extract_date,
     extract_richtext,
+    extract_string,
     find_property,
     parse_xml,
     region_from_program_path,
@@ -49,6 +51,7 @@ class ParsedProgram:
     raw_text: str = ""
     content_hash: str = ""
     date_of_issue: datetime | None = None
+    status: str = "unknown"
     license_attribution: str = LICENSE_ATTRIBUTION
 
     def to_db_payload(self) -> dict[str, Any]:
@@ -68,6 +71,7 @@ class ParsedProgram:
             "raw_text": self.raw_text,
             "content_hash": self.content_hash,
             "date_of_issue": self.date_of_issue,
+            "status": self.status,
             "license_attribution": self.license_attribution,
         }
 
@@ -88,7 +92,11 @@ def parse_program_file(path: Path, resolver: LinkResolver) -> ParsedProgram:
         "regulatoryFWork": extract_richtext(find_property(root, "gsb:regulatoryFWork")),
         "procDescription": extract_richtext(find_property(root, "gsb:procDescription")),
         "procMethod": extract_richtext(find_property(root, "gsb:procMethod")),
+        "procInfluence": extract_richtext(find_property(root, "gsb:procInfluence")),
     }
+    frist_text = extract_richtext(find_property(root, "gsb:frist")) or (
+        extract_string(find_property(root, "gsb:frist")) or ""
+    )
     raw_text = build_raw_text(text_parts)
     date_of_issue = extract_date(find_property(root, "gsb:dateOfIssue"))
 
@@ -125,6 +133,18 @@ def parse_program_file(path: Path, resolver: LinkResolver) -> ParsedProgram:
     external_links = resolver.resolve_external_links(external_hrefs)
     application_url = external_links[0]["url"] if external_links else (contact or {}).get("website")
 
+    status_result = scan_program_fields(
+        {
+            "frist": frist_text,
+            "summary": text_parts["summary"],
+            "bodyText": text_parts["bodyText"],
+            "procDescription": text_parts["procDescription"],
+            "procMethod": text_parts["procMethod"],
+            "procInfluence": text_parts["procInfluence"],
+            "regulatoryFWork": text_parts["regulatoryFWork"],
+        }
+    )
+
     program = ParsedProgram(
         source_id=source_id,
         source_path=source_path,
@@ -140,6 +160,7 @@ def parse_program_file(path: Path, resolver: LinkResolver) -> ParsedProgram:
         contact=contact,
         raw_text=raw_text,
         date_of_issue=date_of_issue,
+        status=status_result.status,
     )
     program.content_hash = compute_program_hash(program.to_db_payload())
     return program

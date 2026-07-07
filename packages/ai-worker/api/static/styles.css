@@ -130,6 +130,9 @@ button.ghost {
   background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
 }
 .tag.accent { color: var(--accent); border-color: rgba(62, 207, 142, 0.4); }
+.tag.status-laufend { color: #3ecf8e; border-color: rgba(62, 207, 142, 0.55); background: rgba(62, 207, 142, 0.08); }
+.tag.status-active { color: #6eb5ff; border-color: rgba(110, 181, 255, 0.45); background: rgba(110, 181, 255, 0.08); }
+.tag.status-closed { color: #f07178; border-color: rgba(240, 113, 120, 0.45); background: rgba(240, 113, 120, 0.08); }
 
 .score {
   font-size: 1.4rem; font-weight: 800; color: var(--accent);

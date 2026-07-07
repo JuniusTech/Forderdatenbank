@@ -55,6 +55,7 @@ class ProgramSummary(BaseModel):
     funding_type: list[str]
     provider_name: str | None
     application_url: str | None
+    status: str
     last_synced_at: datetime
 
 
@@ -89,6 +90,10 @@ class DraftOut(BaseModel):
     company_name: str
 
 
+def _open_program_filter():
+    return FundingProgram.status != "closed"
+
+
 def _program_summary(p: FundingProgram) -> ProgramSummary:
     return ProgramSummary(
         id=p.id,
@@ -97,6 +102,7 @@ def _program_summary(p: FundingProgram) -> ProgramSummary:
         funding_type=p.funding_type or [],
         provider_name=p.provider_name,
         application_url=p.application_url,
+        status=p.status or "unknown",
         last_synced_at=p.last_synced_at,
     )
 
@@ -123,14 +129,18 @@ def startup() -> None:
 @app.get("/api/health")
 def health() -> dict[str, Any]:
     with get_session() as session:
-        program_count = session.scalar(select(func.count()).select_from(FundingProgram))
+        program_count = session.scalar(
+            select(func.count()).select_from(FundingProgram).where(_open_program_filter())
+        )
     return {"status": "ok", "programs": program_count}
 
 
 @app.get("/api/stats")
 def stats() -> dict[str, Any]:
     with get_session() as session:
-        program_count = session.scalar(select(func.count()).select_from(FundingProgram))
+        program_count = session.scalar(
+            select(func.count()).select_from(FundingProgram).where(_open_program_filter())
+        )
         rows = session.execute(select(FundingProgram.region, FundingProgram.funding_type)).all()
     region_counts: dict[str, int] = {}
     type_counts: dict[str, int] = {}
@@ -157,7 +167,7 @@ def list_programs(
     page_size: int = Query(20, ge=1, le=100),
 ) -> dict:
     with get_session() as session:
-        filters = [FundingProgram.status == "active"]
+        filters = [_open_program_filter()]
         if q:
             pattern = f"%{q}%"
             filters.append(
@@ -284,7 +294,7 @@ def run_match(company_id: uuid.UUID, min_score: float = Query(35, ge=0, le=100))
             raise HTTPException(404, "Unternehmen nicht gefunden")
 
         programs = list(
-            session.scalars(select(FundingProgram).where(FundingProgram.status == "active")).all()
+            session.scalars(select(FundingProgram).where(_open_program_filter())).all()
         )
         results = match_company_to_programs(company, programs, min_score=min_score, limit=8)
 

@@ -107,6 +107,13 @@ async function loadFilters() {
   refreshFilterLabels();
 }
 
+function statusBadge(status) {
+  if (!status || status === "unknown") return "";
+  const key = `status.${status}`;
+  const label = t(key);
+  return `<span class="tag status-${escapeHtml(status)}">${escapeHtml(label)}</span>`;
+}
+
 function renderPrograms(data) {
   lastPageData = data;
   const list = document.getElementById("program-list");
@@ -116,7 +123,7 @@ function renderPrograms(data) {
     <article class="program-card" data-id="${p.id}">
       <h3>${escapeHtml(p.title)}</h3>
       <div class="meta">${escapeHtml(p.region || "—")} · ${escapeHtml(p.provider_name || t("catalog.providerNa"))}</div>
-      <div class="tags">${(p.funding_type || []).slice(0, 3).map((tag) => `<span class="tag accent">${escapeHtml(tag)}</span>`).join("")}</div>
+      <div class="tags">${statusBadge(p.status)}${(p.funding_type || []).slice(0, 3).map((tag) => `<span class="tag accent">${escapeHtml(tag)}</span>`).join("")}</div>
     </article>`
     )
     .join("");
@@ -154,7 +161,7 @@ async function openProgram(id) {
   document.getElementById("modal-body").innerHTML = `
     <h2>${escapeHtml(p.title)}</h2>
     <div class="meta">${escapeHtml(p.region || "")} · ${escapeHtml(p.provider_name || "")}</div>
-    <div class="tags">${(p.funding_type || []).map((tag) => `<span class="tag accent">${escapeHtml(tag)}</span>`).join("")}</div>
+    <div class="tags">${statusBadge(p.status)}${(p.funding_type || []).map((tag) => `<span class="tag accent">${escapeHtml(tag)}</span>`).join("")}</div>
     <div class="body-text">${escapeHtml(p.raw_text.slice(0, 2500))}</div>
     ${p.application_url ? `<p><a href="${escapeHtml(p.application_url)}" target="_blank" rel="noopener">${escapeHtml(t("catalog.applyLink"))}</a></p>` : ""}
     <small style="color:var(--muted)">${escapeHtml(p.license_attribution)}</small>`;
@@ -223,7 +230,7 @@ function renderMatches(matches) {
     <article class="match-card">
       <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start">
         <div>
-          <h3>${escapeHtml(m.program.title)}</h3>
+          <h3>${escapeHtml(m.program.title)} ${statusBadge(m.program.status)}</h3>
           <div class="meta">${escapeHtml(m.program.region || "")} · ${escapeHtml(m.program.provider_name || "")}</div>
           ${m.estimated_amount_range ? `<div class="meta">${escapeHtml(m.estimated_amount_range)}</div>` : ""}
         </div>
