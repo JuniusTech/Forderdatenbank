@@ -2,4 +2,7 @@
 .venv/
 __pycache__/
 *.pyc
-.env
+
+# Lokal XML export snapshot (~10k dosya) — ZIP'ten açılır, repo'ya commit edilmez
+BMWI/
+BMWI/

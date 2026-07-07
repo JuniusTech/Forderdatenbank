@@ -1,6 +1,6 @@
 # Data Sources — Förderdatenbank
 
-Son doğrulama: 05.07.2026
+Son doğrulama: 06.07.2026
 
 ---
 
@@ -18,15 +18,24 @@ Son doğrulama: 05.07.2026
 
 ## 2. Erişim Yöntemi
 
-### Resmi API / Export — MEVCUT DEĞİL
+### Birincil: Resmi XML ZIP Export — MEVCUT ✅
 
-| Endpoint | Durum |
-|----------|-------|
-| `https://www.foerderdatenbank.de/FDB/WS/export` | Ana sayfaya yönlendiriyor — endpoint yok |
-| RSS feed | Mevcut değil |
-| XML Schnittstelle | Dokümantasyon var ancak endpoint erişilebilir değil |
+| Alan | Değer |
+|------|-------|
+| Endpoint | `GET https://www.foerderdatenbank.de/FDB/WS/export` |
+| Auth | Yok |
+| Filtre | Yok — her çağrı **full snapshot** |
+| Format | ZIP → repository-yol tabanlı tekil `.xml` dosyaları |
+| Program sayısı | 2.488 (`FDB/Content/DE/Foerderprogramm/**/*.xml`) |
+| Toplam dosya | ~10.352 XML |
+| Şema PDF | `BMWI/schnittstellenbeschreibung-download-xml.pdf` (lokal) |
+| Detaylı şema notları | `docs/xml-schema-notes.md` |
 
-### Kullanılan yöntem: Session-aware HTML Crawler
+**Not:** Tarayıcıdan doğrudan URL açılınca ana sayfaya yönlendirme olabilir; ZIP indirme tarayıcı veya `curl -L` ile çalışıyor. Lokal snapshot: `BMWI/` (gitignore'da).
+
+**Önemli:** İletişim, kategoriler (Förderart, Foerdergebiet vb.) ve dış linkler ana program dosyasında değil — `target:/BMWI/...` referanslarıyla ayrı XML dosyalarına bağlı. Parser **link resolution** adımı içermeli.
+
+### Yedek: Session-aware HTML Crawler
 
 **Arama başlangıç URL'si:**
 ```
@@ -88,20 +97,25 @@ Bu veritabanı **ikincil kaynaktır**. Asıl referans fon kurumunun kendi web si
 
 ## 5. Sync Stratejisi
 
-### Backfill (tek seferlik — Faz 1)
-- Tüm 249 liste sayfası + ~2.488 detay sayfası
-- Erken durdurma yok
-- Tahmini süre: ~21+ saat (30 sn/istek)
+### Birincil: XML full snapshot (Faz 1b)
+- `GET /FDB/WS/export` → ZIP indir → aç → parse
+- Her sync tam veri seti (artımlı API yok)
+- `source_id` (document `@name`) ile idempotent upsert → `funding_programs`
+- Tahmini süre: indirme + parse dakikalar (HTML crawler'ın ~21 saatine karşı)
 
-### Günlük incremental (Faz 2)
+### Yedek: HTML crawler (Faz 1a — tamamlandı, artık ikincil)
+- Radware CAPTCHA riski; yalnızca XML'de eksik kalan alanlar için enrichment
+- `raw_pages` tablosu ham HTML arşivi olarak kalır
+
+### Günlük incremental (Faz 2 — HTML, opsiyonel)
 - Cron: gece 03:00 CET
-- Tarihe göre azalan sıralama
-- Erken durdurma: 3 ardışık sayfada yeni/değişen yok → dur
-- `content_hash` karşılaştırması (anlamlı içerik blokları)
+- XML sync ile birlikte veya yerine: günlük ZIP yeniden indir + diff
+- HTML incremental: tarihe göre azalan liste, `content_hash` karşılaştırması
 
 ### Değişiklik tespiti
-- `content_hash`: `dl.document-info-fundingprogram` + `#tab1` + `#tab2` + `#tab3` metin birleşimi (SHA-256)
-- Sağlık kontrolü: `div.search--hits` toplam kayıt sayısı önceki günle karşılaştırılır
+- **XML:** `source_id` + içerik hash (raw_text birleşimi) veya tam snapshot replace
+- **HTML:** `content_hash` — `dl` + `#tab1/2/3` (SHA-256)
+- Sağlık kontrolü: program sayısı ~2.488 ±%5
 
 ---
 
