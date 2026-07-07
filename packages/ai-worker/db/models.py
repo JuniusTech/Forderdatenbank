@@ -127,12 +127,36 @@ class Match(Base):
     )
     score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     score_breakdown: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    matched_terms: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list, nullable=False)
+    estimated_amount_range: Mapped[str | None] = mapped_column(Text)
     human_review_required: Mapped[bool] = mapped_column(default=True, nullable=False)
     disclaimer: Mapped[str] = mapped_column(
         Text,
         default="Die endgültige Entscheidung liegt bei der zuständigen Förderstelle.",
         nullable=False,
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class Application(Base):
+    __tablename__ = "applications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
+    program_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("funding_programs.id", ondelete="CASCADE"), nullable=False
+    )
+    match_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("matches.id", ondelete="SET NULL")
+    )
+    state: Mapped[str] = mapped_column(Text, default="draft_ready", nullable=False)
+    draft: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

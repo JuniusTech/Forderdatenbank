@@ -19,6 +19,7 @@
       <button class="nav-btn active" data-tab="catalog">Katalog</button>
       <button class="nav-btn" data-tab="profile">Unternehmensprofil</button>
       <button class="nav-btn" data-tab="matches">Treffer</button>
+      <button class="nav-btn" data-tab="draft">Antragsentwurf</button>
     </nav>
   </header>
 
@@ -67,7 +68,8 @@
         <label>Investitionsbedarf<textarea name="investment_need" rows="3" placeholder="z.B. Küchenmodernisierung, Digitalisierung, Energieeffizienz"></textarea></label>
         <div class="row">
           <button type="submit" class="primary">Profil speichern</button>
-          <button type="button" id="demo-btn" class="ghost">Demo-Profil laden</button>
+          <button type="button" id="demo-restaurant-btn" class="ghost">Demo-Restaurant Berlin</button>
+          <button type="button" id="demo-btn" class="ghost">NRW Gastronomie</button>
         </div>
       </form>
       <div class="card presets">
@@ -85,7 +87,23 @@
       <p id="match-subtitle">Profil speichern und Matching starten.</p>
       <button id="run-match" class="primary" disabled>Matching starten</button>
     </div>
+    <div id="match-loading" class="loading hidden">Matching läuft…</div>
     <div id="match-list" class="match-grid"></div>
+  </section>
+
+  <section id="tab-draft" class="tab">
+    <div class="card draft-header">
+      <h2>Antragsentwurf (ENTWURF)</h2>
+      <p id="draft-subtitle">Wählen Sie bei den Treffern „Entwurf erstellen“.</p>
+    </div>
+    <div id="draft-panel" class="card draft-panel hidden">
+      <div class="watermark">ENTWURF</div>
+      <h3 id="draft-program-title"></h3>
+      <p class="meta" id="draft-company"></p>
+      <div id="draft-stream" class="draft-stream"></div>
+      <div id="draft-meta" class="draft-meta"></div>
+      <p class="draft-disclaimer" id="draft-disclaimer"></p>
+    </div>
   </section>
   </main>
 

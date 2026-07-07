@@ -1,0 +1,19 @@
+{
+  "name": "Restaurant Bergmann Berlin",
+  "region": "Berlin",
+  "sector": "Gastronomie Restaurant",
+  "employees": 8,
+  "company_size": "klein",
+  "legal_form": "GbR",
+  "founded_year": 2019,
+  "annual_revenue": 600000,
+  "investment_need": "Digitalisierung POS Kassensystem Webshop Energieeffizienz Küchenausstattung",
+  "digital_maturity": {
+    "pos": "veraltet",
+    "webshop": "keiner",
+    "buchhaltung": "manuell"
+  },
+  "growth_plan": "zweite Filiale prüfen, Online-Bestellung ausbauen",
+  "bank_relation": "Hausbank Sparkasse",
+  "notes": "Temsili CC-Mitglied — Demo-Profil für Investorenpräsentation"
+}

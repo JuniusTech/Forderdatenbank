@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -9,17 +10,19 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 
+from ai.draft.generator import generate_draft
 from db.config import API_PORT
-from db.models import Company, FundingProgram, Match
+from db.models import Application, Company, FundingProgram, Match
 from db.session import get_session, init_db
-from matcher.rules import DISCLAIMER, match_company_to_programs
+from matcher.pipeline import DISCLAIMER, match_company_to_programs
 
 STATIC_DIR = Path(__file__).parent / "static"
+SEEDS_DIR = Path(__file__).resolve().parents[3] / "seeds"
 
 app = FastAPI(title="Culinary Funding OS — MVP Demo", version="0.1.0")
 app.add_middleware(
@@ -70,9 +73,20 @@ class MatchOut(BaseModel):
     id: uuid.UUID
     score: float
     score_breakdown: dict
+    matched_terms: list[str]
+    estimated_amount_range: str | None
     human_review_required: bool
     disclaimer: str
     program: ProgramSummary
+
+
+class DraftOut(BaseModel):
+    id: uuid.UUID
+    state: str
+    draft: dict
+    created_at: datetime
+    program_title: str
+    company_name: str
 
 
 def _program_summary(p: FundingProgram) -> ProgramSummary:
@@ -205,6 +219,29 @@ def list_funding_types() -> list[str]:
     return sorted(types)
 
 
+@app.get("/api/seeds/demo-company")
+def get_demo_seed() -> dict:
+    path = SEEDS_DIR / "demo_company.json"
+    if not path.is_file():
+        raise HTTPException(404, "Seed nicht gefunden")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.post("/api/seeds/demo-company", response_model=CompanyOut)
+def create_demo_company() -> CompanyOut:
+    seed = get_demo_seed()
+    body = CompanyCreate(
+        name=seed["name"],
+        region=seed["region"],
+        sector=seed.get("sector"),
+        employees=seed.get("employees"),
+        company_size=seed.get("company_size"),
+        investment_need=seed.get("investment_need"),
+        notes=seed.get("notes"),
+    )
+    return create_company(body)
+
+
 @app.post("/api/companies", response_model=CompanyOut)
 def create_company(body: CompanyCreate) -> CompanyOut:
     with get_session() as session:
@@ -239,16 +276,16 @@ def get_company(company_id: uuid.UUID) -> CompanyOut:
 
 
 @app.post("/api/companies/{company_id}/match", response_model=list[MatchOut])
-def run_match(company_id: uuid.UUID, min_score: float = Query(40, ge=0, le=100)) -> list[MatchOut]:
+def run_match(company_id: uuid.UUID, min_score: float = Query(35, ge=0, le=100)) -> list[MatchOut]:
     with get_session() as session:
         company = session.get(Company, company_id)
         if not company:
             raise HTTPException(404, "Unternehmen nicht gefunden")
 
-        programs = session.scalars(
-            select(FundingProgram).where(FundingProgram.status == "active")
-        ).all()
-        results = match_company_to_programs(company, programs, min_score=min_score)
+        programs = list(
+            session.scalars(select(FundingProgram).where(FundingProgram.status == "active")).all()
+        )
+        results = match_company_to_programs(company, programs, min_score=min_score, limit=8)
 
         session.execute(Match.__table__.delete().where(Match.company_id == company_id))
         out: list[MatchOut] = []
@@ -258,22 +295,28 @@ def run_match(company_id: uuid.UUID, min_score: float = Query(40, ge=0, le=100))
                 program_id=result.program.id,
                 score=result.score,
                 score_breakdown=result.breakdown,
+                matched_terms=result.matched_terms,
+                estimated_amount_range=result.estimated_amount_range,
                 human_review_required=True,
                 disclaimer=DISCLAIMER,
             )
             session.add(match)
             session.flush()
-            out.append(
-                MatchOut(
-                    id=match.id,
-                    score=float(match.score),
-                    score_breakdown=match.score_breakdown,
-                    human_review_required=match.human_review_required,
-                    disclaimer=match.disclaimer,
-                    program=_program_summary(result.program),
-                )
-            )
+            out.append(_match_out(match, result.program))
         return out
+
+
+def _match_out(m: Match, p: FundingProgram) -> MatchOut:
+    return MatchOut(
+        id=m.id,
+        score=float(m.score),
+        score_breakdown=m.score_breakdown,
+        matched_terms=m.matched_terms or [],
+        estimated_amount_range=m.estimated_amount_range,
+        human_review_required=m.human_review_required,
+        disclaimer=m.disclaimer,
+        program=_program_summary(p),
+    )
 
 
 @app.get("/api/companies/{company_id}/matches", response_model=list[MatchOut])
@@ -288,17 +331,70 @@ def list_matches(company_id: uuid.UUID) -> list[MatchOut]:
             .where(Match.company_id == company_id)
             .order_by(Match.score.desc())
         ).all()
-        return [
-            MatchOut(
-                id=m.id,
-                score=float(m.score),
-                score_breakdown=m.score_breakdown,
-                human_review_required=m.human_review_required,
-                disclaimer=m.disclaimer,
-                program=_program_summary(p),
+        return [_match_out(m, p) for m, p in rows]
+
+
+@app.post("/api/matches/{match_id}/draft", response_model=DraftOut)
+def create_draft(match_id: uuid.UUID) -> DraftOut:
+    with get_session() as session:
+        match = session.get(Match, match_id)
+        if not match:
+            raise HTTPException(404, "Match nicht gefunden")
+        company = session.get(Company, match.company_id)
+        program = session.get(FundingProgram, match.program_id)
+        if not company or not program:
+            raise HTTPException(404, "Daten unvollständig")
+
+        draft_data = generate_draft(company, program, match)
+        app_row = Application(
+            company_id=company.id,
+            program_id=program.id,
+            match_id=match.id,
+            state="draft_ready",
+            draft=draft_data,
+        )
+        session.add(app_row)
+        session.flush()
+        session.refresh(app_row)
+        return DraftOut(
+            id=app_row.id,
+            state=app_row.state,
+            draft=app_row.draft,
+            created_at=app_row.created_at,
+            program_title=program.title,
+            company_name=company.name,
+        )
+
+
+@app.get("/api/matches/{match_id}/draft/stream")
+def stream_draft(match_id: uuid.UUID) -> StreamingResponse:
+    """SSE — taslak metnini parça parça gönder (demo etkisi)."""
+
+    def generate():
+        with get_session() as session:
+            match = session.get(Match, match_id)
+            if not match:
+                yield "data: {\"error\": \"not found\"}\n\n"
+                return
+            company = session.get(Company, match.company_id)
+            program = session.get(FundingProgram, match.program_id)
+            if not company or not program:
+                yield "data: {\"error\": \"incomplete\"}\n\n"
+                return
+            draft_data = generate_draft(company, program, match)
+            text = draft_data.get("application_text_de", "")
+            chunk_size = 40
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i : i + chunk_size]
+                payload = json.dumps({"chunk": chunk, "done": False}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+            final = json.dumps(
+                {"chunk": "", "done": True, "draft": draft_data},
+                ensure_ascii=False,
             )
-            for m, p in rows
-        ]
+            yield f"data: {final}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.get("/")
