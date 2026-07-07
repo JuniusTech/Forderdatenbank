@@ -25,6 +25,7 @@ def enrich_unknown(
     delay_sec: float = 1.0,
     apply: bool = False,
     dry_run: bool = False,
+    use_ai: bool = False,
 ) -> dict:
     init_db()
     stats: Counter[str] = Counter()
@@ -50,15 +51,22 @@ def enrich_unknown(
                 continue
 
             checked += 1
-            live = check_live_url(url)
+            live = check_live_url(
+                url,
+                program_title=program.title,
+                use_ai_fallback=use_ai,
+            )
             stats[live.status] += 1
             entry = {
                 "title": program.title[:80],
                 "url": url,
                 "was": program.status,
                 "live": live.status,
+                "method": live.method,
                 "reason": live.reason,
                 "closure_date": live.closure_date.isoformat() if live.closure_date else None,
+                "funding_period": live.funding_period,
+                "evidence": live.evidence_quote,
             }
             updates.append(entry)
 
@@ -88,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--delay", type=float, default=1.0, help="Sekunden zwischen Requests")
     parser.add_argument("--apply", action="store_true", help="Live-Ergebnis in DB schreiben")
     parser.add_argument("--dry-run", action="store_true", help="Nur report, kein DB write")
+    parser.add_argument("--ai", action="store_true", help="Regex unknown ise Ollama/Claude ile analiz et")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -98,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         delay_sec=args.delay,
         apply=args.apply,
         dry_run=args.dry_run,
+        use_ai=args.ai,
     )
 
     print("\n=== UNKNOWN LIVE ENRICHMENT ===")

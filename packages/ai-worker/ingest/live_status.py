@@ -30,6 +30,10 @@ class LiveStatusResult:
     reason: str
     closure_date: date | None = None
     snippet: str | None = None
+    method: str = "regex"
+    funding_period: str | None = None
+    confidence: str | None = None
+    evidence_quote: str | None = None
 
 
 def html_to_text(html: str) -> str:
@@ -86,6 +90,8 @@ def check_live_url(
     client: HttpClient | None = None,
     reference: date | None = None,
     timeout: float = 12.0,
+    program_title: str = "",
+    use_ai_fallback: bool = False,
 ) -> LiveStatusResult:
     http = client or HttpClient()
     try:
@@ -111,6 +117,34 @@ def check_live_url(
     text = html_to_text(html)
     prog_status, reason, closure, snippet = scan_live_text(text, reference=reference)
 
+    if prog_status == "unknown" and use_ai_fallback:
+        from ai.page_extractor import ai_fallback_available, extract_page_with_ai
+
+        ai = extract_page_with_ai(
+            page_text=text,
+            program_title=program_title or url,
+            page_url=final_url,
+            reference=reference,
+        )
+        if ai:
+            return LiveStatusResult(
+                url=url,
+                http_status=status_code,
+                final_url=final_url,
+                status=ai.status,
+                reason=f"{ai.method} ({ai.confidence}): {ai.reason}",
+                closure_date=ai.application_deadline,
+                snippet=ai.evidence_quote,
+                method=ai.method,
+                funding_period=ai.funding_period,
+                confidence=ai.confidence,
+                evidence_quote=ai.evidence_quote,
+            )
+        if use_ai_fallback and not ai_fallback_available():
+            reason = f"{reason} (AI: weder Ollama noch ANTHROPIC_API_KEY)"
+        elif use_ai_fallback and prog_status == "unknown":
+            reason = f"{reason} (AI-Fallback fehlgeschlagen — OLLAMA_BASE_URL prüfen, ggf. 127.0.0.1 statt localhost)"
+
     return LiveStatusResult(
         url=url,
         http_status=status_code,
@@ -119,4 +153,5 @@ def check_live_url(
         reason=reason,
         closure_date=closure,
         snippet=snippet,
+        method="regex",
     )

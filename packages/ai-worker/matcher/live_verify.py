@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import logging
 import time
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ import requests
 from ingest.http_client import HttpClient
 from ingest.live_status import LiveStatusResult, check_live_url
 from matcher.pipeline import MatchResult
+from ai.page_extractor import ai_fallback_available
 
 if TYPE_CHECKING:
     pass
@@ -43,14 +45,29 @@ class LiveVerifyOutcome:
     live_check: dict
 
 
-def _cached_check(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> tuple[LiveStatusResult, bool]:
+def _cached_check(
+    url: str,
+    *,
+    timeout: float = DEFAULT_TIMEOUT,
+    program_title: str = "",
+    use_ai: bool | None = None,
+) -> tuple[LiveStatusResult, bool]:
     now = time.time()
     hit = _cache.get(url)
     if hit and now - hit[0] < CACHE_TTL_SEC:
         return hit[1], True
 
+    if use_ai is None:
+        use_ai = ai_fallback_available()
+
     try:
-        result = check_live_url(url, client=_client(), timeout=timeout)
+        result = check_live_url(
+            url,
+            client=_client(),
+            timeout=timeout,
+            program_title=program_title,
+            use_ai_fallback=use_ai,
+        )
     except requests.RequestException as exc:
         result = LiveStatusResult(
             url=url,
@@ -95,6 +112,10 @@ def live_check_to_dict(live: LiveStatusResult, *, cached: bool, skipped: bool = 
         "http_status": live.http_status,
         "cached": cached,
         "skipped": skipped,
+        "method": live.method,
+        "funding_period": live.funding_period,
+        "confidence": live.confidence,
+        "evidence_quote": live.evidence_quote,
         "weight": 0,
     }
 
@@ -157,7 +178,7 @@ def verify_match_results(
                 )
             continue
 
-        live, cached = _cached_check(url, timeout=timeout)
+        live, cached = _cached_check(url, timeout=timeout, program_title=match.program.title)
         breakdown = {**match.breakdown, "live_check": live_check_to_dict(live, cached=cached)}
         included = live.status != "closed"
         if not included:
