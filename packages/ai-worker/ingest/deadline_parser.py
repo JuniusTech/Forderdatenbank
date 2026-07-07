@@ -74,6 +74,23 @@ SUBMIT_END_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Eyalet/kurum siteleri: "Ausschlussfrist der 15. Mai 2026", "Frist ... ist der 15. Mai 2026"
+FRIST_LABEL_RE = re.compile(
+    r"(?:ausschlussfrist|bewerbungsfrist|antragsfrist|einsendeschluss|abgabefrist)"
+    r"[^.]{0,100}?"
+    r"(?:(?:ist\s+)?der\s+)?(\d{1,2})\.\s*"
+    r"(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)"
+    r"\s+(\d{4})",
+    re.IGNORECASE,
+)
+
+FRIST_IST_DER_RE = re.compile(
+    r"frist[^.]{0,80}?\bist\s+der\s+(\d{1,2})\.\s*"
+    r"(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)"
+    r"\s+(\d{4})",
+    re.IGNORECASE,
+)
+
 ISO_DATE_PROP_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 
 
@@ -152,6 +169,22 @@ def scan_text_field(text: str, source: str) -> list[DeadlineSignal]:
             )
         )
 
+    for pattern, weight in ((FRIST_LABEL_RE, 88), (FRIST_IST_DER_RE, 86)):
+        for match in pattern.finditer(normalized):
+            snippet = match.group(0)
+            if SKIP_CONTEXT_RE.search(snippet):
+                continue
+            end = _parse_german_date(match.group(1), match.group(2), match.group(3))
+            signals.append(
+                DeadlineSignal(
+                    kind="application_end",
+                    source=source,
+                    end=end,
+                    detail=snippet[:100],
+                    weight=weight,
+                )
+            )
+
     for match in WINDOW_DE_RE.finditer(normalized):
         snippet = match.group(0)
         start = _parse_german_date(match.group(1), match.group(2), match.group(3))
@@ -194,7 +227,10 @@ def scan_text_field(text: str, source: str) -> list[DeadlineSignal]:
                 continue
             # bodyText'te zayıf generic — yalnızca Antrag/Geltungsdauer yakınında
             if source == "bodyText" and not re.search(
-                r"geltungsdauer|anträge|antragstellung|förderrichtlinie|laufzeit", snippet, re.I
+                r"geltungsdauer|anträge|antragstellung|förderrichtlinie|laufzeit|"
+                r"ausschlussfrist|antragsfrist|bewerbungsfrist|frist zur",
+                snippet,
+                re.I,
             ):
                 continue
             end = _parse_german_date(match.group(1), match.group(2), match.group(3))

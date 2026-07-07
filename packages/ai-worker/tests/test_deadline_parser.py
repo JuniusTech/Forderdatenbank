@@ -81,6 +81,16 @@ def test_closed_keyword_forces_closed():
     assert result.status == "closed"
 
 
+def test_ausschlussfrist_handarbeitsweinbau():
+    text = (
+        "Für beide ist die Ausschlussfrist der 15. Mai 2026. "
+        "Frist zur Stellung des Auszahlungsantrags ist der 15. Mai 2026."
+    )
+    result = scan_program_fields({"bodyText": text}, reference=date(2026, 7, 7))
+    assert result.status == "closed"
+    assert result.application_end == date(2026, 5, 15)
+
+
 def test_skip_zweckbindungsfrist_not_application_end():
     text = "Die Anlagen müssen bis zum Ende der Zweckbindungsfrist betrieben werden."
     result = scan_program_fields({"bodyText": text}, reference=REF)
