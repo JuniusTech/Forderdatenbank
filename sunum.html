@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Culinary Funding OS — Sunum</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root{
+    --night:#0B1220;
+    --night-2:#111C2E;
+    --panel:#16233A;
+    --line:#22344F;
+    --ink:#EAF1F8;
+    --muted:#8A9CB5;
+    --green:#33D17A;      /* CC yeşili, canlandırılmış */
+    --green-deep:#1E9E5A;
+    --amber:#F5B841;
+    --red:#E5533C;
+    --display:'Space Grotesk',sans-serif;
+    --body:'Inter',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--night);
+    color:var(--ink);
+    font-family:var(--body);
+    overflow:hidden;
+  }
+
+  .deck{width:100vw;height:100vh;position:relative}
+
+  .slide{
+    position:absolute;inset:0;
+    display:none;
+    flex-direction:column;
+    padding:6vh 7vw;
+    opacity:0;
+    transition:opacity .45s ease;
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(51,209,122,.10), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(51,209,122,.06), transparent 55%),
+      var(--night);
+  }
+  .slide.active{display:flex;opacity:1}
+
+  /* akış şeridi — imza öğe */
+  .flow{
+    position:absolute;top:5vh;left:7vw;right:7vw;
+    display:flex;align-items:center;gap:14px;
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    letter-spacing:.04em;
+  }
+  .flow .step{display:flex;align-items:center;gap:8px;opacity:.4;transition:opacity .3s}
+  .flow .step.on{opacity:1;color:var(--green)}
+  .flow .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .flow .bar{flex:1;height:1px;background:var(--line);max-width:38px}
+
+  .eyebrow{
+    font-family:var(--mono);font-size:13px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--green);margin-bottom:22px;
+    display:flex;align-items:center;gap:12px;
+  }
+  .eyebrow .num{
+    font-size:12px;color:var(--muted);
+    border:1px solid var(--line);border-radius:4px;padding:2px 8px;
+  }
+
+  h1{font-family:var(--display);font-weight:700;line-height:1.04;letter-spacing:-.02em}
+  h2{font-family:var(--display);font-weight:600;line-height:1.1;letter-spacing:-.01em}
+  .lead{color:var(--muted);font-size:clamp(16px,1.5vw,20px);line-height:1.55;max-width:60ch}
+
+  .center{justify-content:center}
+  .fill{flex:1;display:flex;flex-direction:column;justify-content:center}
+
+  /* TITLE */
+  .title h1{font-size:clamp(40px,6.5vw,86px)}
+  .title .sub{margin-top:24px;font-size:clamp(17px,1.7vw,22px);color:var(--muted);max-width:54ch;line-height:1.5}
+  .brandline{display:flex;align-items:center;gap:14px;margin-bottom:34px}
+  .brandmark{
+    width:44px;height:44px;border-radius:10px;
+    background:linear-gradient(135deg,var(--green),var(--green-deep));
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--display);font-weight:700;color:var(--night);font-size:20px;
+  }
+  .brandname{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.02em}
+
+  /* generic content */
+  .big-num{font-family:var(--display);font-weight:700;font-size:clamp(44px,7vw,96px);color:var(--green);line-height:1}
+  .kpis{display:flex;gap:56px;margin-top:20px;flex-wrap:wrap}
+  .kpi .n{font-family:var(--display);font-weight:700;font-size:clamp(30px,3.6vw,52px);color:var(--ink)}
+  .kpi .n .u{color:var(--green);font-size:.5em;margin-left:4px}
+  .kpi .l{color:var(--muted);font-size:14px;margin-top:6px;max-width:20ch}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;flex:1}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+
+  .points{list-style:none;margin-top:10px}
+  .points li{
+    padding:16px 0;border-bottom:1px solid var(--line);
+    display:flex;gap:16px;align-items:flex-start;
+  }
+  .points li:last-child{border-bottom:none}
+  .points .k{color:var(--green);font-family:var(--mono);font-size:13px;padding-top:3px;min-width:26px}
+  .points .t{font-size:clamp(15px,1.4vw,18px);line-height:1.5}
+  .points .t b{color:var(--ink);font-weight:600}
+  .points .t span{color:var(--muted)}
+
+  /* demo mock panel */
+  .mock{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.4);
+  }
+  .mock-bar{
+    display:flex;align-items:center;gap:8px;padding:12px 16px;
+    background:var(--night-2);border-bottom:1px solid var(--line);
+  }
+  .mock-bar .dots{display:flex;gap:6px}
+  .mock-bar .dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+  .mock-bar .url{
+    font-family:var(--mono);font-size:11px;color:var(--muted);
+    margin-left:8px;background:var(--night);padding:4px 12px;border-radius:6px;flex:1;
+  }
+  .mock-body{padding:22px}
+
+  .live-badge{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--green);border:1px solid var(--green-deep);border-radius:999px;
+    padding:5px 12px;margin-top:20px;
+  }
+  .live-badge .pulse{
+    width:8px;height:8px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 0 rgba(51,209,122,.6);animation:pulse 1.8s infinite;
+  }
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(51,209,122,.6)}70%{box-shadow:0 0 0 10px rgba(51,209,122,0)}100%{box-shadow:0 0 0 0 rgba(51,209,122,0)}}
+
+  .disclaimer{
+    font-family:var(--mono);font-size:11px;color:var(--amber);
+    border:1px dashed rgba(245,184,65,.4);border-radius:8px;
+    padding:8px 12px;margin-bottom:16px;display:inline-block;
+  }
+
+  /* program card mock */
+  .pcard{background:var(--night-2);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px}
+  .pcard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .pcard .name{font-weight:600;font-size:15px;line-height:1.3}
+  .pcard .score{font-family:var(--display);font-weight:700;color:var(--green);font-size:22px;white-space:nowrap}
+  .pcard .meta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .tag{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;background:var(--panel);color:var(--muted);border:1px solid var(--line)}
+  .tag.g{color:var(--green);border-color:var(--green-deep)}
+  .why{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);line-height:1.6}
+  .why b{color:var(--green);font-weight:500}
+
+  /* draft mock */
+  .draft{font-family:var(--mono);font-size:12.5px;line-height:1.75;color:#C6D4E6;white-space:pre-wrap}
+  .draft .h{color:var(--green);font-weight:500}
+  .draft .ph{color:var(--amber)}
+  .wm{position:absolute;right:18px;top:14px;font-family:var(--display);font-weight:700;font-size:13px;color:rgba(245,184,65,.5);letter-spacing:.2em}
+
+  /* closing */
+  .cycle{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:8px}
+  .cycle .node{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 18px;font-weight:600;font-size:14px;
+  }
+  .cycle .arrow{color:var(--green);font-size:20px}
+  .cycle .node.cc{border-color:var(--green-deep);color:var(--green)}
+
+  /* footer nav */
+  .foot{
+    position:absolute;bottom:3.4vh;left:7vw;right:7vw;
+    display:flex;justify-content:space-between;align-items:center;
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+  }
+  .foot .brand{display:flex;align-items:center;gap:9px}
+  .foot .brand i{width:8px;height:8px;border-radius:2px;background:var(--green)}
+  .progress{display:flex;gap:6px}
+  .progress i{width:22px;height:3px;border-radius:2px;background:var(--line);transition:background .3s}
+  .progress i.on{background:var(--green)}
+
+  .hint{position:absolute;bottom:3.2vh;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:11px;color:var(--muted);opacity:.6}
+
+  kbd{font-family:var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px}
+
+  @media (prefers-reduced-motion: reduce){
+    .slide{transition:none}.live-badge .pulse{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- 0 · TITLE -->
+  <section class="slide center">
+    <div class="fill title">
+      <div class="brandline">
+        <div class="brandmark">CC</div>
+        <div class="brandname">Culinary Collective</div>
+      </div>
+      <div class="eyebrow">AI-Powered Funding &amp; Growth Platform</div>
+      <h1>Restoranların büyümesi için<br>gereken finansmanı<br><span style="color:var(--green)">otomatik bulan</span> altyapı.</h1>
+      <p class="sub">Memorandumunuzda bir başlık olarak yazdığınız katmanın çalışan hâli. Almanya'daki 2.488 resmi teşvik, hibe ve kredi programını CC ekosistemine bağlayan sistem.</p>
+    </div>
+  </section>
+
+  <!-- 1 · PROBLEM / ÇERÇEVE -->
+  <section class="slide">
+    <div class="eyebrow"><span class="num">01</span> Çerçeve</div>
+    <div class="cols">
+      <div>
+        <h2 style="font-size:clamp(26px,3vw,40px)">Bir restoranı sisteme katmak pahalı — çünkü sermaye erişimi zor.</h2>
+        <p class="lead" style="margin-top:20px">Memorandumda bir lokasyonun aktif olma maliyeti <b style="color:var(--ink)">5.000–10.000 €</b>, üye kazanımı ise lokasyon başına <b style="color:var(--ink)">600–700 €</b> danışmanlık. Restoran bu yatırımı yapmakta zorlanıyor.</p>
+        <p class="lead" style="margin-top:16px">Oysa Almanya'da bu yatırımların çoğunu karşılayabilecek <b style="color:var(--green)">binlerce devlet desteği</b> var — ama dağınık, Almanca ve bulunması zor.</p>
+      </div>
+      <div>
+        <ul class="points">
+          <li><span class="k">01</span><span class="t"><b>Federal + 16 eyalet + AB</b> <span>— 2.488 aktif program, sürekli değişen başvuru pencereleri.</span></span></li>
+          <li><span class="k">02</span><span class="t"><b>Restoran sahibi tek başına bulamaz</b> <span>— hangi program, hangi masraf, hangi tarih?</span></span></li>
+          <li><span class="k">03</span><span class="t"><b>Danışman pahalı ve yavaş</b> <span>— her başvuru saatler, bazen günler.</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · ÇÖZÜM ÖZET -->
+  <section class="slide">
+    <div class="eyebrow"><span class="num">02</span> Çözüm</div>
+    <div class="fill">
+      <h2 style="font-size:clamp(28px,3.4vw,46px);max-width:20ch">Restoran profilini alır, uygun destekleri bulur, başvuruyu yazar.</h2>
+      <div class="kpis" style="margin-top:38px">
+        <div class="kpi"><div class="n">2.488</div><div class="l">resmi programın tamamı sistemde</div></div>
+        <div class="kpi"><div class="n">4,5<span class="u">dk</span></div><div class="l">tüm katalog güncellenir (elle 21 saat sürerdi)</div></div>
+        <div class="kpi"><div class="n">%100</div><div class="l">programda iletişim + başvuru bilgisi dolu</div></div>
+      </div>
+      <p class="lead" style="margin-top:34px">Yazılım tarafı hazır. Sıradaki üç ekran, sistemin bir restoran için uçtan uca ne yaptığını gösteriyor.</p>
+    </div>
+  </section>
+
+  <!-- 3 · DEMO A — PROFİL -->
+  <section class="slide">
+    <div class="flow">
+      <span class="step on"><span class="dot"></span>Profil</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Eşleşme</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Taslak</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Çarpan</span>
+    </div>
+    <div class="cols" style="margin-top:3vh">
+      <div>
+        <div class="eyebrow"><span class="num">03</span> Demo · Adım 1</div>
+        <h2 style="font-size:clamp(24px,2.8vw,36px)">Restoran profili — zaten sizin ERP'nizde.</h2>
+        <p class="lead" style="margin-top:18px">Sistem bilgileri tekrar sormuyor; CC'nin CRM/ERP'sinden çekiyor. Bölge, çalışan sayısı ve yatırım ihtiyacı eşleştirmenin girdisi.</p>
+        <div class="live-badge"><span class="pulse"></span>Bu ekran canlı gösterilebilir</div>
+      </div>
+      <div class="mock">
+        <div class="mock-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">funding.cc-collective.de / firma</div></div>
+        <div class="mock-body">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.08em">FİRMA PROFİLİ</div>
+          <div style="font-size:20px;font-weight:600;margin:8px 0 16px">Ristorante Da Marco <span style="color:var(--muted);font-weight:400;font-size:14px">· CC üyesi</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="pcard" style="margin:0"><div style="color:var(--muted);font-size:12px">Bölge</div><div style="font-weight:600;margin-top:4px">Berlin</div></div>
+            <div class="pcard" style="margin:0"><div style="color:var(--muted);font-size:12px">Çalışan</div><div style="font-weight:600;margin-top:4px">8</div></div>
+            <div class="pcard" style="margin:0"><div style="color:var(--muted);font-size:12px">Yıllık ciro</div><div style="font-weight:600;margin-top:4px">~610.000 €</div></div>
+            <div class="pcard" style="margin:0"><div style="color:var(--muted);font-size:12px">Durum</div><div style="font-weight:600;margin-top:4px">POS + Webshop eksik</div></div>
+          </div>
+          <div style="margin-top:14px"><span class="tag g">İhtiyaç: Dijitalleşme</span> <span class="tag g">İhtiyaç: Ekipman</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · DEMO B — EŞLEŞME (VAY 1) -->
+  <section class="slide">
+    <div class="flow">
+      <span class="step"><span class="dot"></span>Profil</span><span class="bar"></span>
+      <span class="step on"><span class="dot"></span>Eşleşme</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Taslak</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Çarpan</span>
+    </div>
+    <div class="cols" style="margin-top:3vh">
+      <div>
+        <div class="eyebrow"><span class="num">04</span> Demo · Adım 2 · <span style="color:var(--amber)">kilit an</span></div>
+        <h2 style="font-size:clamp(24px,2.8vw,36px)">Eşleşen programlar — ve <span style="color:var(--green)">neden</span> eşleştiği.</h2>
+        <p class="lead" style="margin-top:18px">Sistem bir kara kutu değil. Her öneriyi açıklıyor: hangi bölge, hangi masraf, hangi tür. Danışman gerekçeyi saniyede doğrular.</p>
+        <div class="live-badge"><span class="pulse"></span>Bu ekran canlı gösterilebilir</div>
+      </div>
+      <div class="mock">
+        <div class="mock-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">funding.cc-collective.de / eşleşme</div></div>
+        <div class="mock-body">
+          <div class="disclaimer">Aday programlar — danışman teyidi gerekli. Nihai karar ilgili kuruma aittir.</div>
+          <div class="pcard">
+            <div class="top">
+              <div class="name">Digital Jetzt — Investitionsförderung Mittelstand</div>
+              <div class="score">94</div>
+            </div>
+            <div class="meta"><span class="tag g">Zuschuss</span><span class="tag">Bund · bundesweit</span><span class="tag">10.000–50.000 €</span></div>
+            <div class="why"><b>Neden uygun?</b> &nbsp;Bölge <b>bundesweit</b> (Berlin dahil) · masraf kalemi <b>Digitalisierung, POS, Webshop</b> profille eşleşti · tür <b>hibe</b> talebinizle uyumlu.</div>
+          </div>
+          <div class="pcard">
+            <div class="top">
+              <div class="name">GRW — Gewerbliche Investitionen Berlin</div>
+              <div class="score">81</div>
+            </div>
+            <div class="meta"><span class="tag g">Zuschuss</span><span class="tag">Land · Berlin</span><span class="tag">Ekipman</span></div>
+            <div class="why"><b>Neden uygun?</b> &nbsp;Bölge <b>Berlin</b> tam eşleşme · <b>ekipman yatırımı</b> uygun masraf.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · DEMO C — TASLAK (VAY 2) -->
+  <section class="slide">
+    <div class="flow">
+      <span class="step"><span class="dot"></span>Profil</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Eşleşme</span><span class="bar"></span>
+      <span class="step on"><span class="dot"></span>Taslak</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Çarpan</span>
+    </div>
+    <div class="cols" style="margin-top:3vh">
+      <div>
+        <div class="eyebrow"><span class="num">05</span> Demo · Adım 3 · <span style="color:var(--amber)">en güçlü an</span></div>
+        <h2 style="font-size:clamp(24px,2.8vw,36px)">Başvuru taslağı — <span style="color:var(--green)">saniyeler içinde</span>, Almanca.</h2>
+        <p class="lead" style="margin-top:18px">Danışmanın günlerce uğraşacağı iş: proje açıklaması, bütçe, gerekçe. Sistem taslağı yazar — danışman sıfırdan yazmaz, <b style="color:var(--ink)">kontrol edip imzalar</b>.</p>
+        <div class="live-badge"><span class="pulse"></span>Canlıda metin akarak yazılır</div>
+      </div>
+      <div class="mock" style="position:relative">
+        <div class="wm">TASLAK</div>
+        <div class="mock-bar"><div class="dots"><i></i><i></i><i></i></div><div class="url">funding.cc-collective.de / başvuru</div></div>
+        <div class="mock-body">
+          <div class="disclaimer">Taslak · otomatik gönderilmez · insan onayı zorunlu.</div>
+          <div class="draft"><span class="h">Projektbeschreibung</span>
+Die Ristorante Da Marco GmbH (Berlin, 8 Mitarbeiter) plant die
+Digitalisierung ihres Betriebs durch Einführung eines integrierten
+POS- und Webshop-Systems.
+
+<span class="h">Investitionsplan</span>
+· POS-Terminals &amp; Kassensystem ........ 6.400 €
+· Webshop &amp; Online-Bestellung ......... <span class="ph">[DANIŞMAN DOLDURACAK]</span>
+· Schulung &amp; Onboarding ............... 1.200 €
+
+<span class="h">Begründung der Förderfähigkeit</span>
+Die Maßnahme steigert die betriebliche Effizienz und erschließt
+digitale Vertriebskanäle — förderfähig unter „Digital Jetzt".</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · ÇARPAN ETKİSİ -->
+  <section class="slide">
+    <div class="flow">
+      <span class="step"><span class="dot"></span>Profil</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Eşleşme</span><span class="bar"></span>
+      <span class="step"><span class="dot"></span>Taslak</span><span class="bar"></span>
+      <span class="step on"><span class="dot"></span>Çarpan</span>
+    </div>
+    <div class="fill" style="margin-top:2vh">
+      <div class="eyebrow"><span class="num">06</span> Neden CC için stratejik</div>
+      <h2 style="font-size:clamp(24px,3vw,42px);max-width:24ch">Her onaylanan hibe, CC'ye geri dönen bir gelir.</h2>
+      <div class="cycle" style="margin-top:30px">
+        <div class="node">Finansmanı bul</div><div class="arrow">→</div>
+        <div class="node">Restoran yatırım yapar</div><div class="arrow">→</div>
+        <div class="node cc">CC ekosisteminde harcar</div><div class="arrow">→</div>
+        <div class="node cc">GMV + üye artar</div>
+      </div>
+      <p class="lead" style="margin-top:30px">Restoran aldığı desteği yine CC içinde kullanır: ERP, webshop, ekipman, marka. Finansman katmanı, üye kazanımını hızlandıran bir motora dönüşür — memorandumdaki <b style="color:var(--green)">"kendi kendini finanse eden büyüme"</b> tam olarak budur.</p>
+    </div>
+  </section>
+
+  <!-- 7 · SINIR + SONRAKİ ADIM -->
+  <section class="slide">
+    <div class="eyebrow"><span class="num">07</span> Sınır &amp; Sonraki Adım</div>
+    <div class="cols">
+      <div>
+        <h2 style="font-size:clamp(24px,2.8vw,38px)">Bilinçli bir sınır: yazılım + danışmanlık.</h2>
+        <p class="lead" style="margin-top:18px">Sistem asla "bu hibeyi alırsınız" demiyor — "aday program, danışman teyidi gerekli" diyor. Almanya'da finansal aracılık lisans ister; ilk fazda o çizginin berisinde kalıyoruz. Bu bizi <b style="color:var(--ink)">hızlı ve güvende</b> tutuyor.</p>
+      </div>
+      <div>
+        <ul class="points">
+          <li><span class="k">✓</span><span class="t"><b>Bugün hazır</b> <span>— 2.488 program, eşleştirme, taslak üretimi çalışıyor.</span></span></li>
+          <li><span class="k">→</span><span class="t"><b>Onay sonrası</b> <span>— hukuki danışmanlık + komisyon/aracılık modeli ayrı lisanslı yapıda.</span></span></li>
+          <li><span class="k">→</span><span class="t"><b>Ölçek</b> <span>— günlük otomatik senkron, semantik eşleştirme, tam pipeline entegrasyonu.</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · KAPANIŞ -->
+  <section class="slide center">
+    <div class="fill title">
+      <div class="brandline"><div class="brandmark">CC</div><div class="brandname">Culinary Collective</div></div>
+      <h1 style="font-size:clamp(34px,5vw,66px)">Slaytta bir başlıktı.<br><span style="color:var(--green)">Artık çalışıyor.</span></h1>
+      <p class="sub">Sıradaki adım: canlı sistemi birlikte deneyelim — ve bir sonraki fazı konuşalım.</p>
+      <div class="live-badge" style="margin-top:26px"><span class="pulse"></span>Şimdi canlı demoya geçebilirim</div>
+    </div>
+  </section>
+
+</div>
+
+<div class="foot">
+  <div class="brand"><i></i> Culinary Funding OS · JuniusTech</div>
+  <div class="progress" id="progress"></div>
+</div>
+<div class="hint"><kbd>←</kbd> <kbd>→</kbd> ile ilerle · <kbd>F</kbd> tam ekran</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const prog=document.getElementById('progress');
+  let i=0;
+  slides.forEach(()=>{const b=document.createElement('i');prog.appendChild(b)});
+  const bars=[...prog.children];
+  function show(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    bars.forEach((b,k)=>b.classList.toggle('on',k<=i));
+  }
+  function next(){show(i+1)} function prev(){show(i-1)}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();next()}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prev()}
+    else if(e.key==='Home'){show(0)} else if(e.key==='End'){show(slides.length-1)}
+    else if(e.key.toLowerCase()==='f'){
+      if(!document.fullscreenElement)document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  // tıkla/dokun ile ilerle (sağ yarı ileri, sol yarı geri)
+  document.getElementById('deck').addEventListener('click',e=>{
+    (e.clientX>window.innerWidth/2)?next():prev();
+  });
+  show(0);
+</script>
+</body>
+</html>
