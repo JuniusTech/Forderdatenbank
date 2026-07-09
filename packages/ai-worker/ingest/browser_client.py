@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html as html_module
 import logging
+from urllib.parse import urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,41 @@ def detect_captcha(page) -> bool:
     return False
 
 
+def _url_variants(url: str) -> list[str]:
+    parsed = urlparse(url)
+    variants = [url]
+    if parsed.netloc == "lfa.de":
+        variants.append(urlunparse(parsed._replace(netloc="www.lfa.de")))
+    if parsed.netloc and not parsed.netloc.startswith("www."):
+        variants.append(urlunparse(parsed._replace(netloc="www." + parsed.netloc)))
+    # bmfsfj -> bmbfsfj.bund.de path preserve
+    if "bmfsfj.de" in parsed.netloc:
+        variants.append(
+            url.replace("bmfsfj.de", "bmbfsfj.bund.de").replace("www.bmfsfj", "www.bmbfsfj")
+        )
+    seen: set[str] = set()
+    out: list[str] = []
+    for v in variants:
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
+def _enrich_html_with_inner_text(page, html: str) -> str:
+    try:
+        inner = page.evaluate("() => document.body?.innerText || ''")
+    except Exception:
+        return html
+    inner = (inner or "").strip()
+    if len(inner) < 300:
+        return html
+    # SPA: innerText genelde soup'tan daha zengin (nbank, aufbaubank)
+    if len(inner) > len(html) * 0.15:
+        return f"<html><body>{html_module.escape(inner)}</body></html>"
+    return html
+
+
 class PlaywrightClient:
     """Tek tarayıcı örneğini tüm istekler için yeniden kullanır. with-blok destekli."""
 
@@ -61,7 +98,7 @@ class PlaywrightClient:
         *,
         headless: bool = True,
         wait_until: str = "domcontentloaded",
-        render_wait_ms: int = 1500,
+        render_wait_ms: int = 2000,
         dismiss_cookies: bool = True,
     ) -> None:
         self._headless = headless
@@ -105,36 +142,47 @@ class PlaywrightClient:
             pass
         self._context = self._browser = self._pw = None
 
+    def _fetch_once(self, page, url: str, timeout: float) -> tuple[int, str, str]:
+        response = page.goto(url, wait_until=self._wait_until, timeout=timeout * 1000)
+        try:
+            page.wait_for_load_state("networkidle", timeout=8000)
+        except Exception:
+            pass
+        if self._render_wait_ms:
+            page.wait_for_timeout(self._render_wait_ms)
+        if self._dismiss_cookies:
+            dismiss_consent(page)
+        if detect_captcha(page):
+            logger.warning("CAPTCHA detected on %s", url)
+            return 0, page.url, ""
+        status = response.status if response else 0
+        final_url = page.url
+        html = _enrich_html_with_inner_text(page, page.content())
+        return status, final_url, html
+
     def get(self, url: str, timeout: float = 60.0) -> tuple[int, str, str]:
         if self._context is None:
             raise RuntimeError("PlaywrightClient with-blok içinde kullanılmalı")
 
-        page = self._context.new_page()
-        page.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
-        )
-        try:
-            response = page.goto(url, wait_until=self._wait_until, timeout=timeout * 1000)
+        last_result = (0, url, "")
+        for attempt_url in _url_variants(url):
+            page = self._context.new_page()
+            page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
+            )
             try:
-                page.wait_for_load_state("networkidle", timeout=5000)
-            except Exception:
-                pass
-            if self._render_wait_ms:
-                page.wait_for_timeout(self._render_wait_ms)
-            if self._dismiss_cookies:
-                dismiss_consent(page)
-            if detect_captcha(page):
-                logger.warning("CAPTCHA detected on %s", url)
-                return 0, page.url, ""
-            status = response.status if response else 0
-            final_url = page.url
-            html = page.content()
-            return status, final_url, html
-        except Exception as exc:
-            logger.warning("Playwright fetch failed (%s): %s", url, exc.__class__.__name__)
-            return 0, url, ""
-        finally:
-            try:
-                page.close()
-            except Exception:
-                pass
+                result = self._fetch_once(page, attempt_url, timeout)
+                last_result = result
+                status, final_url, html = result
+                if status == 200 and html.strip():
+                    return result
+            except Exception as exc:
+                logger.warning(
+                    "Playwright fetch failed (%s): %s", attempt_url, exc.__class__.__name__
+                )
+            finally:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+        return last_result

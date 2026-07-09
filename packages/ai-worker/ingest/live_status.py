@@ -105,6 +105,33 @@ UEBS_FOERDERUNG_RE = re.compile(
     re.I,
 )
 
+ROLLING_ANTRAGSFRIST_RE = re.compile(
+    r"antragsfrist\s+beträgt\s+\d+\s+woche|zwei\s+wochen\s+vor\s+(?:dem\s+)?(?:geplanten\s+)?kursbeginn",
+    re.I,
+)
+
+FOERDERPORTAL_ANTAG_RE = re.compile(
+    r"antragstellung\s+(?:ist\s+)?(?:über\s+)?(?:das\s+)?förderportal",
+    re.I,
+)
+
+ANTRAGSSTICHTAG_RE = re.compile(
+    r"(?:nächster\s+)?antragsstichtag\s+ist\s+am\s+(\d{2})\.(\d{2})\.(\d{4})",
+    re.I,
+)
+
+JEDERZEIT_ANTRAG_RE = re.compile(
+    r"antragstellung\s+ist\s+(?:hier\s+)?jederzeit\s+möglich",
+    re.I,
+)
+
+DIGITALE_ANTRAG_KUERZE_RE = re.compile(
+    r"digitale\s+antragstellung\s+ist\s+in\s+kürze\s+möglich",
+    re.I,
+)
+
+AUFTRAGSGARANTIE_RE = re.compile(r"auftragsgarantien\s+bieten\s+wir", re.I)
+
 FORM_ONLY_RE = re.compile(
     r"ansprechpartner\s+(?:vor\s+ort|liste)|produktauswahl|formular\s+zum\s+ausfüllen|"
     r"nur\s+(?:formulare|vordrucke)|anträge\s+und\s+formulare",
@@ -183,6 +210,24 @@ def apply_live_heuristics(
     """Regex/AI öncesi — ground-truth'tan çıkarılan ek kurallar."""
     ref = reference or date.today()
 
+    m = ANTRAGSSTICHTAG_RE.search(text)
+    if m:
+        stichtag = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        snippet = _snippet(text, m.start(), m.end())
+        if stichtag >= ref:
+            return (
+                "laufend",
+                f"Antragsstichtag {stichtag.isoformat()}",
+                stichtag,
+                snippet,
+            )
+        return (
+            "closed",
+            f"Antragsstichtag verstrichen ({stichtag.isoformat()})",
+            stichtag,
+            snippet,
+        )
+
     for pat in (VALIDITY_UNTIL_RE, VALID_UNTIL_TRAILING_RE, BEFRISTET_UNTIL_RE):
         m = pat.search(text)
         if m:
@@ -223,6 +268,11 @@ def apply_live_heuristics(
         )
 
     for pat, reason in (
+        (ROLLING_ANTRAGSFRIST_RE, "Rollierende Antragsfrist — Dauerprogramm"),
+        (FOERDERPORTAL_ANTAG_RE, "Antrag über Förderportal"),
+        (JEDERZEIT_ANTRAG_RE, "Antragstellung jederzeit möglich"),
+        (DIGITALE_ANTRAG_KUERZE_RE, "Digitale Antragstellung demnächst — Programm aktiv"),
+        (AUFTRAGSGARANTIE_RE, "LfA Auftragsgarantien — aktives Produkt"),
         (ONLINE_ANTAG_RE, "Online-Antragsverfahren aktiv"),
         (ANTRAGSFORMULAR_ACTIVE_RE, "Antragsformular verfügbar — Programm aktiv"),
         (LAUFENDES_FOERDERPROGRAMM_RE, "Laufendes Förderprogramm ohne Enddatum"),
