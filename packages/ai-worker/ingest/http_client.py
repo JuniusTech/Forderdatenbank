@@ -1,4 +1,5 @@
 import requests
+import urllib3
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -16,5 +17,12 @@ class HttpClient:
         self.session.headers.update(DEFAULT_HEADERS)
 
     def get(self, url: str, timeout: float = 60.0) -> tuple[int, str, str]:
-        response = self.session.get(url, timeout=timeout, allow_redirects=True)
-        return response.status_code, response.url, response.text
+        try:
+            response = self.session.get(url, timeout=timeout, allow_redirects=True)
+            return response.status_code, response.url, response.text
+        except requests.exceptions.SSLError:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = self.session.get(
+                url, timeout=timeout, allow_redirects=True, verify=False
+            )
+            return response.status_code, response.url, response.text

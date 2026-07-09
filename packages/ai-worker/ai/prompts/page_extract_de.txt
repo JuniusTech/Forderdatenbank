@@ -14,12 +14,20 @@ Antworte ausschließlich als JSON (kein Markdown):
 
 Regeln:
 - Heute ist im User-Payload als reference_date angegeben.
-- status=closed NUR wenn: explizite Schließung, keine Antragstellung, oder eindeutige Antragsfrist liegt VOR reference_date.
-- status=laufend wenn: klarer Antragszeitraum und reference_date liegt darin.
-- status=active wenn: Programm wirkt offen, Dauerförderung, Förderperiode läuft (z.B. 2023-2027), aber keine konkrete abgelaufene Frist.
-- status=unknown wenn: Seite unklar, nur Navigationslinks, PDF-Hinweise ohne Frist, oder nur Richtlinien-Inkrafttreten-Datum (≠ Antragsfrist).
-- Unterscheide: Richtlinienfassung/Inkrafttreten ≠ Antragsfrist.
-- Ausschlussfrist, Antragsfrist, Bewerbungsfrist, Frist zur Stellung = Antragsfrist.
-- Bei Förderperiode ohne Jahresfrist: application_deadline=null, status eher active.
+- status=closed wenn: explizite Schließung, keine Antragstellung, abgelaufene Frist, HTTP-Fehlerseite, "Seite existiert nicht mehr", "Fehlerseite".
+- status=laufend wenn: klare Gültigkeit/Befristung und reference_date liegt davor (z.B. "gültig bis 31.12.2028", "befristet bis 30.06.2027").
+- status=active wenn: Programm wirkt offen — Dauerförderung, Finanzierungspartner-Antrag, laufende Förderperiode, aktuelle Produktseite ohne Enddatum.
+- status=unknown NUR wenn: Seite wirklich leer, nur Navigation, oder keinerlei Programminhalt erkennbar.
+- WICHTIG: Fehlende Antragsfrist ≠ unknown. Viele Programme haben keine feste Frist (Dauerförderung, Antrag über Bank).
+- Antrag über Finanzierungspartner = application_possible true, status eher active.
+- Richtlinie "gültig bis DATUM" in der Zukunft = status laufend.
+- Unterscheide: Richtlinien-Inkrafttreten ≠ Antragsfrist.
 - evidence_quote MUSS aus dem Text stammen; nichts erfinden.
-- Bei Unsicherheit: unknown + confidence low.
+- Bei klarer Evidenz: confidence medium oder high, nicht default low.
+
+Beispiele (Muster, keine echten Zitate):
+- Seite beschreibt seit Jahren laufendes Programm ohne Enddatum → active, application_flow rolling
+- "Die Richtlinie ist bis zum 31. Dezember 2028 gültig" → laufend, valid_until 2028-12-31
+- HTTP 404 oder Fehlerseite ohne Programminhalt → closed
+- Produktseite mit Konditionen, Antrag beim Finanzierungspartner → active
+- Redirect auf konsolidierte Übersichtsseite mit Stand-Datum und Befristung → laufend

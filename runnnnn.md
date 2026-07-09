@@ -1,4 +1,11 @@
 ```bash
+
+cd packages/ai-worker
+.\.venv\Scripts\Activate.ps1
+python -m scripts.enrich_unknown_status --limit 50 --apply --ai --unknown-out kalan_unknown.jsonl
+
+
+
 python -m scripts.enrich_unknown_status --limit 50 --dry-run --ai
 # memnunsan:
 python -m scripts.enrich_unknown_status --limit 50 --apply --ai
@@ -17,7 +24,22 @@ kill 18573
 **2. Ön planda çalıştır** (nohup kullanma):
 
 ```bash
-cd packages/ai-worker && source .venv/bin/activate
+
+
+ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass 
+
+
+
+cd packages/ai-worker
+
+
+ &&
+
+ source .venv/bin/activate
+ .\.venv\Scripts\Activate.ps1   
+
+
+
 
 python -m ingest.catalog_crawler \
   --mode backfill \

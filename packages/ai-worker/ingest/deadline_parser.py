@@ -23,9 +23,10 @@ GERMAN_MONTHS = {
 }
 
 CLOSED_KEYWORD_RE = re.compile(
-    r"keine\s+antragstellung|antragstellung\s+(?:ist\s+)?nicht\s+(?:mehr\s+)?möglich|"
+    r"keine\s+antragstellung|keine\s+neuen\s+anträge|antragstellung\s+(?:ist\s+)?nicht\s+(?:mehr\s+)?möglich|"
     r"nicht\s+mehr\s+möglich|programm\s+(?:ist\s+)?beendet|antragsfrist\s+.*abgelaufen|"
-    r"förderung\s+.*ausgelaufen|ausgeschrieben\s+.*beendet",
+    r"förderung\s+.*ausgelaufen|ausgeschrieben\s+.*beendet|antragsstopp|"
+    r"vorübergehend\s+keine\s+anträge",
     re.IGNORECASE,
 )
 
