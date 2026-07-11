@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import html as html_module
 import logging
-from urllib.parse import urlparse, urlunparse
+
+from ingest.domain_rules import expand_url_variants, get_rule_for_url, is_suspicious_redirect
 
 logger = logging.getLogger(__name__)
 
@@ -55,28 +56,7 @@ def detect_captcha(page) -> bool:
     return False
 
 
-def _url_variants(url: str) -> list[str]:
-    parsed = urlparse(url)
-    variants = [url]
-    if parsed.netloc == "lfa.de":
-        variants.append(urlunparse(parsed._replace(netloc="www.lfa.de")))
-    if parsed.netloc and not parsed.netloc.startswith("www."):
-        variants.append(urlunparse(parsed._replace(netloc="www." + parsed.netloc)))
-    # bmfsfj -> bmbfsfj.bund.de path preserve
-    if "bmfsfj.de" in parsed.netloc:
-        variants.append(
-            url.replace("bmfsfj.de", "bmbfsfj.bund.de").replace("www.bmfsfj", "www.bmbfsfj")
-        )
-    seen: set[str] = set()
-    out: list[str] = []
-    for v in variants:
-        if v not in seen:
-            seen.add(v)
-            out.append(v)
-    return out
-
-
-def _enrich_html_with_inner_text(page, html: str) -> str:
+def _enrich_html_with_inner_text(page, html: str, *, force: bool = False) -> str:
     try:
         inner = page.evaluate("() => document.body?.innerText || ''")
     except Exception:
@@ -84,8 +64,7 @@ def _enrich_html_with_inner_text(page, html: str) -> str:
     inner = (inner or "").strip()
     if len(inner) < 300:
         return html
-    # SPA: innerText genelde soup'tan daha zengin (nbank, aufbaubank)
-    if len(inner) > len(html) * 0.15:
+    if force or len(inner) > len(html) * 0.15:
         return f"<html><body>{html_module.escape(inner)}</body></html>"
     return html
 
@@ -120,7 +99,8 @@ class PlaywrightClient:
             viewport={"width": 1440, "height": 900},
             ignore_https_errors=True,
             user_agent=(
-                "FoerderdatenbankMonitor/1.0 (+https://github.com/local/foerderdatenbank; research bot)"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
         )
         return self
@@ -142,22 +122,44 @@ class PlaywrightClient:
             pass
         self._context = self._browser = self._pw = None
 
-    def _fetch_once(self, page, url: str, timeout: float) -> tuple[int, str, str]:
-        response = page.goto(url, wait_until=self._wait_until, timeout=timeout * 1000)
+    def _fetch_once(self, page, url: str, timeout: float, *, original_url: str) -> tuple[int, str, str]:
+        rule = get_rule_for_url(url) or get_rule_for_url(original_url)
+        wait_until = rule.wait_until if rule else self._wait_until
+        # networkidle bazı sitelerde asla bitmez — timeout ile sınırla
         try:
-            page.wait_for_load_state("networkidle", timeout=8000)
+            response = page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
         except Exception:
-            pass
+            raise
+        if wait_until == "networkidle":
+            try:
+                page.wait_for_load_state("networkidle", timeout=min(12000, timeout * 1000))
+            except Exception:
+                pass
+        else:
+            try:
+                page.wait_for_load_state("networkidle", timeout=8000)
+            except Exception:
+                pass
         if self._render_wait_ms:
             page.wait_for_timeout(self._render_wait_ms)
         if self._dismiss_cookies:
             dismiss_consent(page)
+
+        final_url = page.url
+        if is_suspicious_redirect(original_url, final_url):
+            logger.warning(
+                "Suspicious redirect (possible hijack): %s → %s", original_url, final_url
+            )
+            # İçerik okuma / cookie yok — güvenli çık
+            return 0, final_url, ""
+
         if detect_captcha(page):
             logger.warning("CAPTCHA detected on %s", url)
-            return 0, page.url, ""
+            return 0, final_url, ""
+
         status = response.status if response else 0
-        final_url = page.url
-        html = _enrich_html_with_inner_text(page, page.content())
+        force_inner = bool(rule and rule.use_inner_text_fallback)
+        html = _enrich_html_with_inner_text(page, page.content(), force=force_inner)
         return status, final_url, html
 
     def get(self, url: str, timeout: float = 60.0) -> tuple[int, str, str]:
@@ -165,17 +167,21 @@ class PlaywrightClient:
             raise RuntimeError("PlaywrightClient with-blok içinde kullanılmalı")
 
         last_result = (0, url, "")
-        for attempt_url in _url_variants(url):
+        for attempt_url in expand_url_variants(url):
             page = self._context.new_page()
             page.add_init_script(
                 "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
             )
             try:
-                result = self._fetch_once(page, attempt_url, timeout)
+                result = self._fetch_once(page, attempt_url, timeout, original_url=url)
                 last_result = result
                 status, final_url, html = result
+                if status == 0 and final_url and is_suspicious_redirect(url, final_url):
+                    # Hijack — daha fazla deneme yapma
+                    return result
                 if status == 200 and html.strip():
                     return result
+                # 404 ise lowercase/alt path zaten expand_url_variants içinde
             except Exception as exc:
                 logger.warning(
                     "Playwright fetch failed (%s): %s", attempt_url, exc.__class__.__name__

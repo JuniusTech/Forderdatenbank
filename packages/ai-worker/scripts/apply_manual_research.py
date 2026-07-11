@@ -18,6 +18,25 @@ logger = logging.getLogger(__name__)
 APPLY_STATUSES = frozenset({"active", "closed", "laufend"})
 
 
+def _title_score(program_title: str, query_title: str) -> int:
+    """Aynı URL adayları arasında en iyi başlık eşleşmesi."""
+    a = (program_title or "").lower().strip()
+    b = (query_title or "").lower().strip()
+    if not a or not b:
+        return 0
+    if a == b:
+        return 1000
+    # Daha spesifik DB başlığı (query prefix ise) tercih
+    if a.startswith(b) or b.startswith(a):
+        return 500 + min(len(a), len(b))
+    words = [w for w in b.replace("/", " ").replace("–", " ").split() if len(w) > 4]
+    if not words:
+        return 0
+    hits = sum(1 for w in words if w in a)
+    # Tüm önemli kelimeler + uzunluk yakınlığı
+    return hits * 20 + (10 if abs(len(a) - len(b)) < 15 else 0)
+
+
 def _find_program(session, row: dict) -> FundingProgram | None:
     url = (row.get("url") or "").strip()
     title = (row.get("title") or "").strip()
@@ -27,16 +46,24 @@ def _find_program(session, row: dict) -> FundingProgram | None:
                 select(FundingProgram).where(FundingProgram.application_url == url)
             ).all()
         )
+        # canonical_url ile de ara
+        canonical = (row.get("canonical_url") or "").strip()
+        if not candidates and canonical:
+            candidates = list(
+                session.scalars(
+                    select(FundingProgram).where(FundingProgram.application_url == canonical)
+                ).all()
+            )
         if len(candidates) == 1:
             return candidates[0]
         if len(candidates) > 1 and title:
-            for prog in candidates:
-                if prog.title.lower().startswith(title[: min(len(title), 55)].lower()):
-                    return prog
-            keywords = [w for w in title.replace("/", " ").split() if len(w) > 5]
-            for prog in candidates:
-                if any(k.lower() in prog.title.lower() for k in keywords):
-                    return prog
+            ranked = sorted(
+                candidates,
+                key=lambda p: _title_score(p.title, title),
+                reverse=True,
+            )
+            if _title_score(ranked[0].title, title) > 0:
+                return ranked[0]
         if candidates:
             return candidates[0]
     if title:
@@ -114,8 +141,15 @@ def apply_manual_research(
             old_status = program.status
             program.status = status
             canonical = (row.get("canonical_url") or "").strip() or None
+            page_kind = (row.get("page_kind") or "").strip()
+            # wrong_url + canonical yoksa URL'yi bozma; sadece status yaz
             if canonical and canonical.rstrip("/") != (program.application_url or "").rstrip("/"):
                 program.application_url = canonical
+            elif page_kind in {"wrong_url", "portal_root", "spa_shell"} and not canonical:
+                logger.info(
+                    "Status updated but URL left (no canonical): %s",
+                    program.title[:50],
+                )
 
             stats["updated"] += 1
             details.append(

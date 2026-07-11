@@ -17,8 +17,10 @@ from ingest.http_client import HttpClient
 LIVE_CLOSED_PATTERNS = [
     re.compile(r"keine\s+antragstellung\s+möglich", re.I),
     re.compile(r"keine\s+neuen\s+anträge", re.I),
-    re.compile(r"seit\s+dem\s+(\d{2})\.(\d{2})\.(\d{4})\s+ist\s+keine\s+antragstellung", re.I),
-    re.compile(r"antragstellung\s+(?:ist\s+)?(?:derzeit\s+)?nicht\s+möglich", re.I),
+    re.compile(r"seit\s+dem\s+(\d{2})\.(\d{2})\.(\d{4})\s+ist\s+(?:keine\s+antragstellung|eine\s+antragsstellung\s+nicht\s+mehr\s+möglich)", re.I),
+    re.compile(r"antragstellung\s+(?:ist\s+)?(?:daher\s+)?(?:derzeit\s+)?nicht\s+(?:mehr\s+)?möglich", re.I),
+    re.compile(r"derzeit\s+ist\s+eine\s+antragstellung[^.]{0,40}nicht\s+möglich", re.I),
+    re.compile(r"mittel\s+(?:im\s+\w+\s+)?(?:sind|ist)\s+(?:vollständig\s+)?ausgeschöpft", re.I),
     re.compile(r"programm\s+(?:ist\s+)?(?:derzeit\s+)?(?:geschlossen|beendet|ausgelaufen)", re.I),
     re.compile(r"antragsstopp|vorübergehend\s+keine\s+anträge", re.I),
 ]
@@ -111,7 +113,8 @@ ROLLING_ANTRAGSFRIST_RE = re.compile(
 )
 
 FOERDERPORTAL_ANTAG_RE = re.compile(
-    r"antragstellung\s+(?:ist\s+)?(?:über\s+)?(?:das\s+)?förderportal",
+    r"antragstellung\s+(?:ist\s+)?(?:über\s+)?(?:das\s+)?förderportal|"
+    r"online-portal\s+der\s+tab|über\s+das\s+online-portal",
     re.I,
 )
 

@@ -89,15 +89,84 @@ def _build_user_payload(
     reference: date | None,
     text_limit: int = 12000,
 ) -> tuple[str, dict]:
+    from ai.site_profiles import build_ai_site_hints
+
     ref = (reference or date.today()).isoformat()
     system = PROMPT_PATH.read_text(encoding="utf-8")
     user_payload = {
         "reference_date": ref,
         "program_title": program_title,
         "page_url": page_url,
+        "site_hints": build_ai_site_hints(page_url),
         "page_text": page_text[:text_limit],
     }
     return system, user_payload
+
+
+def _apply_site_postprocess(
+    result: PageExtractResult,
+    *,
+    page_text: str,
+    program_title: str,
+    page_url: str,
+) -> PageExtractResult:
+    """Ollama low/unknown sonrası site kurallarıyla güçlendirme."""
+    from ai.site_profiles import (
+        build_ai_site_hints,
+        page_has_program_substance,
+        title_mentioned_in_text,
+        url_is_insufficient,
+    )
+
+    hints = build_ai_site_hints(page_url)
+    insufficient = url_is_insufficient(page_url) or hints.get("root_insufficient")
+
+    # Hijack / root yetersiz / wrong overview: asla active/closed'a yükseltme
+    if insufficient and result.status in {"active", "laufend", "closed"}:
+        return PageExtractResult(
+            status="unknown",
+            reason=f"{result.reason} [site: insufficient_url → unknown]",
+            application_deadline=result.application_deadline,
+            funding_period=result.funding_period,
+            application_possible=result.application_possible,
+            evidence_quote=result.evidence_quote,
+            confidence="low",
+            method=f"{result.method}+site",
+        )
+
+    # Program anlatılmış + kapanış yok + domain prefer_active → unknown/low düzelt
+    if (
+        result.status == "unknown"
+        and not insufficient
+        and hints.get("prefer_active_if_described")
+        and page_has_program_substance(page_text)
+        and title_mentioned_in_text(program_title, page_text)
+    ):
+        closed_markers = (
+            "nicht mehr möglich",
+            "keine antragstellung",
+            "antragsstopp",
+            "mittel ausgeschöpft",
+            "eingestellt",
+            "ausgelaufen",
+        )
+        low = page_text.lower()
+        if not any(m in low for m in closed_markers):
+            return PageExtractResult(
+                status="active",
+                reason=(
+                    f"{result.reason} [site: {hints.get('domain')} "
+                    "Programm beschrieben ohne Schließung → active]"
+                ),
+                application_deadline=result.application_deadline,
+                funding_period=result.funding_period,
+                application_possible=True,
+                evidence_quote=result.evidence_quote or page_text[:180],
+                confidence="medium",
+                method=f"{result.method}+site",
+            )
+
+    return result
 
 
 def extract_page_with_ollama(
@@ -153,7 +222,13 @@ def extract_page_with_ollama(
         logger.warning("Ollama page extract failed: %s", exc)
         return None
 
-    return _result_from_data(data, method="ollama")
+    result = _result_from_data(data, method="ollama")
+    return _apply_site_postprocess(
+        result,
+        page_text=page_text,
+        program_title=program_title,
+        page_url=page_url,
+    )
 
 
 def extract_page_with_claude(
@@ -194,7 +269,13 @@ def extract_page_with_claude(
         logger.debug("Claude page extract failed: %s", exc)
         return None
 
-    return _result_from_data(data, method="claude")
+    result = _result_from_data(data, method="claude")
+    return _apply_site_postprocess(
+        result,
+        page_text=page_text,
+        program_title=program_title,
+        page_url=page_url,
+    )
 
 
 def extract_page_with_ai(
