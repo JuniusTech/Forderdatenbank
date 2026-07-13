@@ -8,10 +8,10 @@ import logging
 import sys
 from pathlib import Path
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from db.models import FundingProgram
-from db.session import get_session, init_db
+from db.session import SessionLocal, init_db
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +28,20 @@ def _title_score(program_title: str, query_title: str) -> int:
         return 1000
     # Daha spesifik DB başlığı (query prefix ise) tercih
     if a.startswith(b) or b.startswith(a):
+        # Daha uzun eşleşme = daha spesifik (Energiekredit vs Energiekredit Gebäude)
+        shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+        if longer.startswith(shorter) and len(longer) - len(shorter) > 3:
+            # exact shorter query should prefer exact shorter program
+            if len(a) <= len(b):
+                return 600 + len(a)
+            return 400 + len(b)
         return 500 + min(len(a), len(b))
-    words = [w for w in b.replace("/", " ").replace("–", " ").split() if len(w) > 4]
+    words = [w for w in b.replace("/", " ").replace("–", " ").replace("?", " ").split() if len(w) > 4]
     if not words:
         return 0
     hits = sum(1 for w in words if w in a)
-    # Tüm önemli kelimeler + uzunluk yakınlığı
+    if hits < 2:
+        return 0
     return hits * 20 + (10 if abs(len(a) - len(b)) < 15 else 0)
 
 
@@ -64,19 +72,38 @@ def _find_program(session, row: dict) -> FundingProgram | None:
             )
             if _title_score(ranked[0].title, title) > 0:
                 return ranked[0]
-        if candidates:
+            # Skor 0 → yanlış adayı seçme; title ile devam
+            candidates = []
+        elif candidates and not title:
             return candidates[0]
     if title:
-        return session.scalar(
-            select(FundingProgram)
-            .where(
-                or_(
-                    FundingProgram.title == title,
-                    FundingProgram.title.ilike(f"{title[:60]}%"),
-                )
-            )
-            .limit(1)
+        exact = session.scalar(
+            select(FundingProgram).where(FundingProgram.title == title).limit(1)
         )
+        if exact:
+            return exact
+        # ilike adayları: en kısa / en yakın başlık (Energiekredit ≠ Energiekredit Regenerativ)
+        loose = list(
+            session.scalars(
+                select(FundingProgram)
+                .where(FundingProgram.title.ilike(f"{title[:60]}%"))
+                .limit(20)
+            ).all()
+        )
+        if not loose:
+            return None
+        loose.sort(key=lambda p: (abs(len(p.title) - len(title)), len(p.title)))
+        best = loose[0]
+        if _title_score(best.title, title) > 0 or best.title.lower().startswith(title[:40].lower()):
+            # Exact-prefix ama fazla uzun eklenti varsa reddet ( +3 kelime)
+            if best.title.lower() != title.lower():
+                extra = best.title[len(title) :].strip(" –-?")
+                if extra and len(extra) > 3 and not title.lower().endswith(extra.lower()[:10]):
+                    # Regenerativ / Gebäude gibi uzantı: sadece query tam eşleşmiyorsa atla
+                    if abs(len(best.title) - len(title)) > 5:
+                        return None
+            return best
+        return None
     return None
 
 
@@ -111,7 +138,8 @@ def apply_manual_research(
     with path.open(encoding="utf-8") as fh:
         lines = [ln.strip() for ln in fh if ln.strip()]
 
-    with get_session() as session:
+    session = SessionLocal()
+    try:
         for line in lines:
             stats["rows"] += 1
             row = json.loads(line)
@@ -142,8 +170,12 @@ def apply_manual_research(
             program.status = status
             canonical = (row.get("canonical_url") or "").strip() or None
             page_kind = (row.get("page_kind") or "").strip()
-            # wrong_url + canonical yoksa URL'yi bozma; sadece status yaz
-            if canonical and canonical.rstrip("/") != (program.application_url or "").rstrip("/"):
+            # wrong_url + canonical yoksa veya canonical bozuk (... içeriyorsa) URL'yi bozma
+            if (
+                canonical
+                and "..." not in canonical
+                and canonical.rstrip("/") != (program.application_url or "").rstrip("/")
+            ):
                 program.application_url = canonical
             elif page_kind in {"wrong_url", "portal_root", "spa_shell"} and not canonical:
                 logger.info(
@@ -170,8 +202,15 @@ def apply_manual_research(
                 row.get("confidence"),
             )
 
-        if not dry_run:
+        if dry_run:
+            session.rollback()
+        else:
             session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
     if review_out and review_rows:
         review_out.parent.mkdir(parents=True, exist_ok=True)

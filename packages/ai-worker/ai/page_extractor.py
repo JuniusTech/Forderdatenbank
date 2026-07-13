@@ -142,6 +142,20 @@ def _apply_site_postprocess(
         and page_has_program_substance(page_text)
         and title_mentioned_in_text(program_title, page_text)
     ):
+        reason_l = (result.reason or "").lower()
+        # Ollama zaten "sadece navigasyon / içerik yok" demişse yükseltme
+        if any(
+            x in reason_l
+            for x in (
+                "navigation",
+                "keine spezifischen",
+                "keinen weiteren inhalt",
+                "nur den seitentitel",
+                "nur wenig",
+                "seite ist leer",
+            )
+        ):
+            return result
         closed_markers = (
             "nicht mehr möglich",
             "keine antragstellung",
@@ -151,7 +165,14 @@ def _apply_site_postprocess(
             "ausgelaufen",
         )
         low = page_text.lower()
-        if not any(m in low for m in closed_markers):
+        # "ohne Antragsstopp" false positive olmasın
+        if "ohne antragsstopp" in low or "kein antragsstopp" in low:
+            closed_hit = any(
+                m in low for m in closed_markers if m != "antragsstopp"
+            )
+        else:
+            closed_hit = any(m in low for m in closed_markers)
+        if not closed_hit:
             return PageExtractResult(
                 status="active",
                 reason=(

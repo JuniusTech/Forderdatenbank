@@ -62,9 +62,16 @@ def _enrich_html_with_inner_text(page, html: str, *, force: bool = False) -> str
     except Exception:
         return html
     inner = (inner or "").strip()
+    if len(inner) < 80 and not force:
+        return html
+    # bb-h.de u.ä.: Readability/HTML kann Widget greifen — force immer innerText
+    if force:
+        if len(inner) < 80:
+            return html
+        return f"<html><body>{html_module.escape(inner)}</body></html>"
     if len(inner) < 300:
         return html
-    if force or len(inner) > len(html) * 0.15:
+    if len(inner) > len(html) * 0.15:
         return f"<html><body>{html_module.escape(inner)}</body></html>"
     return html
 
@@ -125,14 +132,30 @@ class PlaywrightClient:
     def _fetch_once(self, page, url: str, timeout: float, *, original_url: str) -> tuple[int, str, str]:
         rule = get_rule_for_url(url) or get_rule_for_url(original_url)
         wait_until = rule.wait_until if rule else self._wait_until
-        # networkidle bazı sitelerde asla bitmez — timeout ile sınırla
+        effective_timeout = timeout
+        if rule and rule.fetch_timeout_sec:
+            effective_timeout = max(timeout, rule.fetch_timeout_sec)
+        response = None
         try:
-            response = page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+            response = page.goto(
+                url, wait_until="domcontentloaded", timeout=effective_timeout * 1000
+            )
         except Exception:
+            if rule and rule.accept_partial_on_timeout:
+                try:
+                    html = page.content()
+                    if html and len(html) > 800:
+                        force_inner = bool(rule.use_inner_text_fallback)
+                        html = _enrich_html_with_inner_text(page, html, force=force_inner)
+                        return 200, page.url, html
+                except Exception:
+                    pass
             raise
         if wait_until == "networkidle":
             try:
-                page.wait_for_load_state("networkidle", timeout=min(12000, timeout * 1000))
+                page.wait_for_load_state(
+                    "networkidle", timeout=min(15000, effective_timeout * 1000)
+                )
             except Exception:
                 pass
         else:
@@ -140,8 +163,9 @@ class PlaywrightClient:
                 page.wait_for_load_state("networkidle", timeout=8000)
             except Exception:
                 pass
-        if self._render_wait_ms:
-            page.wait_for_timeout(self._render_wait_ms)
+        render_ms = self._render_wait_ms + (rule.extra_render_wait_ms if rule else 0)
+        if render_ms:
+            page.wait_for_timeout(render_ms)
         if self._dismiss_cookies:
             dismiss_consent(page)
 
@@ -150,7 +174,6 @@ class PlaywrightClient:
             logger.warning(
                 "Suspicious redirect (possible hijack): %s → %s", original_url, final_url
             )
-            # İçerik okuma / cookie yok — güvenli çık
             return 0, final_url, ""
 
         if detect_captcha(page):

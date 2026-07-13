@@ -19,6 +19,9 @@ class SiteProfile:
     use_inner_text_fallback: bool = False
     try_lowercase_on_404: bool = False
     known_working_subpaths: tuple[str, ...] = ()
+    fetch_timeout_sec: float | None = None
+    extra_render_wait_ms: int = 0
+    accept_partial_on_timeout: bool = False
     # AI
     page_kind: str = "program"  # program | portal_root | spa | ministry_overview | bank_product
     ai_hints_de: tuple[str, ...] = ()
@@ -51,14 +54,20 @@ SITE_PROFILES: dict[str, SiteProfile] = {
         domain="aufbaubank.de",
         try_lowercase_on_404=True,
         use_inner_text_fallback=True,
+        wait_until="networkidle",
+        fetch_timeout_sec=90.0,
+        extra_render_wait_ms=3000,
+        accept_partial_on_timeout=True,
         page_kind="program",
         prefer_active_if_described=True,
         ai_hints_de=(
-            "TAB/Aufbaubank: 'Online-Portal der TAB', 'Förderportal', 'Antragstellung möglich' → active.",
-            "'Mittel ausgeschöpft' / 'Derzeit ist eine Antragstellung nicht möglich' → closed.",
-            "Aktualisierungsdatum allein ≠ closed. Produktbeschreibung ohne Schließung → active.",
+            "TAB: 'Online-Portal der TAB' / Antragstellung möglich → active.",
+            "'ausgelaufene Richtlinien' in Downloads = Archiv, NICHT Closed für aktuelles Programm.",
+            "Auf 'zuletzt aktualisiert am' im Seitenkopf achten.",
+            "'Mittel ausgeschöpft' / 'Derzeit nicht möglich' → closed.",
+            "Fehlende Frist ≠ unknown.",
         ),
-        notes="TAB",
+        notes="Part2: Archiv-PDFs ≠ closed; long timeout",
     ),
     "lfa.de": SiteProfile(
         domain="lfa.de",
@@ -155,41 +164,60 @@ SITE_PROFILES: dict[str, SiteProfile] = {
     "umwelt.nrw.de": SiteProfile(
         domain="umwelt.nrw.de",
         root_insufficient=True,
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
         page_kind="ministry_overview",
         prefer_active_if_described=True,
         ai_hints_de=(
-            "umwelt.nrw.de Root = nur Teaser — NIE als Programmnachweis.",
-            "Fachpfade (FöNa, Biologische Stationen) können Programminhalt haben.",
-            "Manche Programme nur über Pressemitteilungen nachweisbar — dann medium/active vorsichtig.",
-            "Explizite 'keine Antragstellung' → closed.",
+            "umwelt.nrw.de Root = News-Teaser — NIE als Programmnachweis.",
+            "/naturschutz/... Fachpfade laden direkt und sind oft program_detail.",
+            "Altes Richtliniendatum allein ≠ closed — nur explizite Aufhebung.",
+            "Antrag oft über NRW-Bank Förderlotse oder Bezirksregierung — trotzdem active.",
+            "Manche Einzelförderungen nur über Pressemitteilung nachweisbar.",
+            "'FöBS' / Biologische Stationen / Förderlotse ohne Schließung → active.",
         ),
+        notes="Part2: FöBS/FöNa + force innerText",
     ),
     "mags.nrw": SiteProfile(
         domain="mags.nrw",
-        page_kind="ministry_overview",
+        use_inner_text_fallback=True,
+        wait_until="networkidle",
+        extra_render_wait_ms=2500,
+        page_kind="program_detail",
         prefer_active_if_described=True,
         ai_hints_de=(
-            "MAGS NRW: 'Aktion 100', laufende Landesprogramme oft ohne Enddatum → active.",
-            "Kurzer Teaser ohne Programmdetails → unknown nur wenn wirklich kein Inhalt.",
+            "mags.nrw URLs laden meist direkt korrekten Inhalt — auch bei abweichendem Slug.",
+            "Slug ≠ Titel nicht automatisch wrong_url — erst Inhalt prüfen.",
+            "Mittelaufstockung / gesetzliche Grundlage (§ SGB) ohne Schließung → active.",
+            "Fehlende Frist bei Dauerförderung ≠ unknown.",
+            "Kurzer aber klarer Programmtext (Transfergesellschaft, Hausarzt, Schulgeld) → active.",
         ),
+        notes="Part2: force innerText + networkidle",
     ),
     "soziales.niedersachsen.de": SiteProfile(
         domain="soziales.niedersachsen.de",
-        page_kind="ministry_overview",
+        page_kind="program_detail",
         prefer_active_if_described=True,
         ai_hints_de=(
-            "Nds. Soziales: Themeneseiten nennen oft Landesprogramme namentlich → active wenn genannt.",
-            "Nur allgemeine Jugendhilfe-Übersicht ohne Programmbezug → unknown.",
+            "Nds. Soziales: oft Redirect von Kurz-Slug; networkidle abwarten.",
+            "Wiederkehrende Jahresfrist (z.B. 31. März) = Dauerförderung → active, nicht closed.",
+            "Richtlinie Neufassung / aktueller Verwendungsnachweis → active.",
+            "Nur allgemeine Themeneseite ohne Programmbezug → unknown.",
         ),
+        notes="Part2: Jahresfrist ≠ Ende",
     ),
     "bb-h.de": SiteProfile(
         domain="bb-h.de",
+        use_inner_text_fallback=True,
         page_kind="bank_product",
         prefer_active_if_described=True,
         ai_hints_de=(
-            "Bürgschaftsbank Hessen: Produktseiten für Garantien/Bürgschaften.",
-            "Leere Seite oder nur Menü → unknown. Produktkonditionen → active.",
+            "KRITISCH: Readability greift oft Kundenreferenz-Widget statt Produkttext — "
+            "nur body.innerText ist verlässlich.",
+            "Produktkonditionen (%, Mio. Euro) ohne Schließung → active.",
+            "Antrag über Hausbank oder BoB-Direktweg → active.",
         ),
+        notes="Part2: force innerText — Widget-Bug",
     ),
     "kfw.de": SiteProfile(
         domain="kfw.de",
@@ -270,6 +298,22 @@ SITE_PROFILES: dict[str, SiteProfile] = {
             "CAPTCHA häufig. Bei sichtbarer Förderrichtlinie 2027-2029 → laufend.",
             "Nur Captcha → unknown.",
         ),
+    ),
+    "tmasgff.de": SiteProfile(
+        domain="tmasgff.de",
+        use_inner_text_fallback=True,
+        page_kind="ministry_overview",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "SHARED URL: /gesundheit/aerzte-fuer-thueringen ist Hub für Apotheker/Ärzte/Zahnärzte — "
+            "nicht als einzelne Produktdetailseite werten.",
+            "Hub listet mehrere Instrumente als Bullet-Links (Niederlassung, Landarztquote, "
+            "Thüringen-Dynamik, KfW, Stipendium) — Titel gegen Bullet/Instrument-Text matchen.",
+            "Landarztquote / Thüringen-Dynamik / KfW ohne Schließung → active (medium OK).",
+            "Zahnarzt oft nicht explizit im Hub-Text — nur generische Fördermöglichkeiten ≠ high confidence.",
+            "Nur Seitentitel 'Ärzte für Thüringen' ohne Instrumente → unknown.",
+        ),
+        notes="Part2: shared_url Hub — Bullet-Links folgen",
     ),
 }
 
@@ -369,7 +413,7 @@ def title_mentioned_in_text(title: str, text: str) -> bool:
 
 
 def page_has_program_substance(text: str) -> bool:
-    if not text or len(text) < 120:
+    if not text or len(text) < 200:
         return False
     markers = (
         "förder",
@@ -381,6 +425,19 @@ def page_has_program_substance(text: str) -> bool:
         "finanzierung",
         "maßnahme",
         "programm",
+        "zuwendung",
+        "bewillig",
     )
     low = text.lower()
-    return sum(1 for m in markers if m in low) >= 2
+    # Saf navigasyon/menü sayfalarını ele: az marker + kısa gövde
+    hits = sum(1 for m in markers if m in low)
+    if hits < 3:
+        return False
+    nav_noise = sum(
+        1
+        for n in ("impressum", "datenschutz", "cookie", "navigation", "menü", "sitemap")
+        if n in low
+    )
+    if nav_noise >= 3 and hits < 5:
+        return False
+    return True

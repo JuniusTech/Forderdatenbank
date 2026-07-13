@@ -48,6 +48,12 @@ VALID_UNTIL_TRAILING_RE = re.compile(
     re.I,
 )
 
+# "Richtlinie … (2024-2028)" / "AQUA (2024–2028)"
+PERIOD_YEAR_RANGE_RE = re.compile(
+    r"(?:richtlinie|förderung|programm|aqua)[^.\n]{0,80}?\((\d{4})\s*[–\-]\s*(\d{4})\)",
+    re.I,
+)
+
 BEFRISTET_UNTIL_RE = re.compile(
     r"befristet\s+bis\s+(?:längstens\s+)?(?:zum\s+)?(\d{1,2})\.\s*"
     r"(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)"
@@ -250,6 +256,24 @@ def apply_live_heuristics(
                 snippet,
             )
 
+    m = PERIOD_YEAR_RANGE_RE.search(text)
+    if m:
+        start_y, end_y = int(m.group(1)), int(m.group(2))
+        snippet = _snippet(text, m.start(), m.end())
+        if end_y >= ref.year:
+            return (
+                "laufend",
+                f"Förderperiode {start_y}-{end_y}",
+                date(end_y, 12, 31),
+                snippet,
+            )
+        return (
+            "closed",
+            f"Förderperiode {start_y}-{end_y} beendet",
+            date(end_y, 12, 31),
+            snippet,
+        )
+
     if PARTNER_BANK_RE.search(text) and len(text) > 150:
         m = PARTNER_BANK_RE.search(text)
         snippet = _snippet(text, m.start(), m.end())
@@ -449,6 +473,17 @@ def check_live_url(
         )
 
     if status_code in {404, 410}:
+        # Kırık blob/canonical placeholder → closed değil unknown
+        path_l = (urlparse(final_url or url).path or "").lower()
+        if "/resource/blob/" in path_l or path_l.endswith("-data"):
+            return LiveStatusResult(
+                url=url,
+                http_status=status_code,
+                final_url=final_url,
+                status="unknown",
+                reason=f"HTTP {status_code}: Ressourcen-URL ungültig (kein Programmnachweis)",
+                method="regex",
+            )
         return LiveStatusResult(
             url=url,
             http_status=status_code,

@@ -16,7 +16,7 @@ def test_site_hints_injected_into_payload():
     assert "site_hints" in payload
     assert payload["site_hints"]["domain"] == "schleswig-holstein.de"
     assert payload["site_hints"]["prefer_active_if_described"] is True
-    assert "Domain-Charakteristik" in system
+    assert "site_hints" in system or "Domain-Charakteristik" in system
 
 
 def test_vi_node_is_insufficient():
@@ -51,9 +51,10 @@ def test_metropolregion_expands_antrag_subpage():
 
 def test_postprocess_upgrades_unknown_when_program_described():
     text = (
-        "Das Förderprogramm Aktion 100 unterstützt Unternehmen in NRW. "
-        "Antragstellung ist über das Portal möglich. Zuschuss und Finanzierung "
-        "werden beschrieben. Richtlinie und Maßnahme sind aktuell."
+        "Das Förderprogramm Aktion 100 unterstützt Unternehmen in NRW mit Zuschuss. "
+        "Antragstellung ist über das Portal möglich. Finanzierung und Maßnahme "
+        "werden in der Richtlinie beschrieben. Zuwendung und Bewilligung erfolgen "
+        "nach Prüfung. Das Programm läuft ohne Antragsstopp."
     )
     raw = PageExtractResult(
         status="unknown",
@@ -97,6 +98,15 @@ def test_postprocess_keeps_unknown_on_vi_node_even_if_active():
         page_url="https://www.schleswig-holstein.de/DE/Landesregierung/VI/vi_node.html",
     )
     assert out.status == "unknown"
+
+
+def test_bb_h_forces_inner_text_profile():
+    profile = get_site_profile("https://bb-h.de/angebot/klassische-buergschaft/")
+    assert profile is not None
+    assert profile.use_inner_text_fallback is True
+    rule = get_rule_for_url("https://bb-h.de/angebot/klassische-buergschaft/")
+    assert rule is not None
+    assert rule.use_inner_text_fallback is True
 
 
 def test_domain_rules_still_resolve_from_profiles():

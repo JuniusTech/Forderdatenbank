@@ -20,6 +20,9 @@ class DomainRule:
     try_lowercase_on_404: bool = False
     known_working_subpaths: tuple[str, ...] = ()
     notes: str = ""
+    fetch_timeout_sec: float | None = None
+    extra_render_wait_ms: int = 0
+    accept_partial_on_timeout: bool = False
 
 
 def _profile_to_rule(profile) -> DomainRule:
@@ -30,6 +33,11 @@ def _profile_to_rule(profile) -> DomainRule:
         try_lowercase_on_404=profile.try_lowercase_on_404,
         known_working_subpaths=profile.known_working_subpaths,
         notes=profile.notes,
+        fetch_timeout_sec=getattr(profile, "fetch_timeout_sec", None),
+        extra_render_wait_ms=getattr(profile, "extra_render_wait_ms", 0) or 0,
+        accept_partial_on_timeout=bool(
+            getattr(profile, "accept_partial_on_timeout", False)
+        ),
     )
 
 
@@ -122,6 +130,16 @@ def expand_url_variants(url: str) -> list[str]:
             variants.append(
                 "https://metropolregion.hamburg.de/ueber-uns/foerderfonds/"
                 "projektantraege-und-richtlinien-8498"
+            )
+
+    # LVWA kısa/yanlış foerdermittel kökü → bilinen uzun path
+    if "lvwa.sachsen-anhalt.de" in host_of(url):
+        path_l = (parsed.path or "").lower()
+        if path_l.rstrip("/").endswith("foerdermittel-katastrophenschutz") and "brand-und-katastrophenschutz" not in path_l:
+            variants.append(
+                "https://lvwa.sachsen-anhalt.de/das-lvwa/kommunales-ordnung-verbraucherschutz-migration/"
+                "brand-und-katastrophenschutz-militaerische-angelegenheiten-rettungswesen/"
+                "foerdermittel-katastrophenschutz/"
             )
 
     seen: set[str] = set()
