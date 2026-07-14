@@ -143,18 +143,14 @@ def _apply_site_postprocess(
         and title_mentioned_in_text(program_title, page_text)
     ):
         reason_l = (result.reason or "").lower()
-        # Ollama zaten "sadece navigasyon / içerik yok" demişse yükseltme
+        # Ollama "boş sayfa" demesine rağmen substance marker varsa yükselt (overview/SPA)
         if any(
             x in reason_l
             for x in (
-                "navigation",
-                "keine spezifischen",
-                "keinen weiteren inhalt",
-                "nur den seitentitel",
-                "nur wenig",
                 "seite ist leer",
+                "nur den seitentitel",
             )
-        ):
+        ) and len(page_text) < 400:
             return result
         closed_markers = (
             "nicht mehr möglich",

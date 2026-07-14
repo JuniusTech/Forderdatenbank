@@ -6,10 +6,30 @@ AI ipuçları için ai.site_profiles kullanın.
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
 from ai.site_profiles import SITE_PROFILES, get_site_profile, host_of
+
+# regioaktiv portal kökü → Förderbereich slug (title eşlemesi)
+REGIOAKTIV_TITLE_SLUGS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"aktive\s+eingliederung|\(ae\)", re.I), "aktive-eingliederung"),
+    (re.compile(r"\bfamico\b|familien\s+st[äa]rken", re.I), "famico"),
+    (re.compile(r"\bstabil\b", re.I), "stabil"),
+    (re.compile(r"kompetenzagentur|\(ka\)", re.I), "kompetenzagentur"),
+    (re.compile(r"eltern|eltern\s*bo|berufswahlprozess", re.I), "eltern-bo"),
+    (re.compile(r"\bjube\b|jugendhilfeberater", re.I), "jube"),
+    (re.compile(r"\bjoko\b", re.I), "joko"),
+    (re.compile(r"praxis\s*bo|berufsorientierung", re.I), "praxis-bo"),
+    (re.compile(r"\breko\b|regionale\s+koordination", re.I), "reko"),
+    (re.compile(r"ausbildungsmanagement|verbundausbildung|ausbildungsqualit", re.I), "ausbildungsmanagement"),
+)
+
+REGIOAKTIV_FOERDERBEREICHE = (
+    "https://regioaktiv.sachsen-anhalt.de/ueber-regio-aktiv/foerderbereiche"
+)
 
 
 @dataclass(frozen=True)
@@ -91,6 +111,40 @@ def is_suspicious_redirect(original_url: str, final_url: str) -> bool:
     if rule and "Hijack" in (rule.notes or "") and final != orig:
         return True
     return False
+
+
+def _normalize_title(title: str) -> str:
+    text = unicodedata.normalize("NFKC", title or "")
+    return text.replace("?", " ").replace("–", "-").replace("—", "-")
+
+
+def resolve_program_url(url: str, program_title: str = "") -> str | None:
+    """Yanlış/kök URL'yi program başlığına göre bilinen detay URL'sine çevir.
+
+    Dönüş: önerilen URL veya None (değişiklik yok).
+    """
+    if not url:
+        return None
+    host = host_of(url)
+    path = (urlparse(url).path or "/").rstrip("/") or "/"
+    title = _normalize_title(program_title)
+
+    if "regioaktiv.sachsen-anhalt.de" in host:
+        # Zaten Förderbereich detayıysa dokunma
+        if "/foerderbereiche/" in path and path.count("/") >= 3:
+            return None
+        if not title:
+            # Kök → genel Übersicht (en azından portal_home değil)
+            if path in {"/", ""}:
+                return REGIOAKTIV_FOERDERBEREICHE
+            return None
+        for pattern, slug in REGIOAKTIV_TITLE_SLUGS:
+            if pattern.search(title):
+                return f"{REGIOAKTIV_FOERDERBEREICHE}/{slug}"
+        # Genel REGIO AKTIV / Richtlinie / Modellprojekte → Übersicht
+        if re.search(r"regio\s*aktiv|modellprojekt|regionalisierung", title, re.I):
+            return REGIOAKTIV_FOERDERBEREICHE
+    return None
 
 
 def expand_url_variants(url: str) -> list[str]:

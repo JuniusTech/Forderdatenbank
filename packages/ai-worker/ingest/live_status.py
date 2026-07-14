@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 import requests
 
 from ingest.deadline_parser import CLOSED_KEYWORD_RE, GERMAN_MONTHS, scan_program_fields
+from ingest.domain_rules import resolve_program_url
 from ingest.http_client import HttpClient
 
 # IBB / Förderstelle sayfalarında sık görülen kapalı-banner kalıpları
@@ -461,8 +462,10 @@ def check_live_url(
     use_ai_fallback: bool = False,
 ) -> LiveStatusResult:
     http = client or HttpClient()
+    better = resolve_program_url(url, program_title)
+    fetch_url = better or url
     try:
-        status_code, final_url, html = http.get(url, timeout=timeout)
+        status_code, final_url, html = http.get(fetch_url, timeout=timeout)
     except requests.RequestException as exc:
         return LiveStatusResult(
             url=url,
@@ -512,6 +515,8 @@ def check_live_url(
     )
     resolved_url = final_url
     resolved_canonical: str | None = None
+    if better and better.rstrip("/") != url.rstrip("/") and prog_status != "unknown":
+        resolved_canonical = better
 
     if _should_try_parent(text=text, status=prog_status, program_title=program_title, url=final_url):
         parent = _parent_url(final_url)
@@ -542,7 +547,7 @@ def check_live_url(
     canonical_url, redirect_type = _redirect_metadata(url, resolved_url, prog_status)
     if resolved_canonical and prog_status != "unknown":
         canonical_url = resolved_canonical
-        redirect_type = "parent_page"
+        redirect_type = redirect_type or "title_mapped"
     return LiveStatusResult(
         url=url,
         http_status=status_code,

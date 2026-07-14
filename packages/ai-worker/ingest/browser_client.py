@@ -5,24 +5,44 @@ from __future__ import annotations
 import html as html_module
 import logging
 
-from ingest.domain_rules import expand_url_variants, get_rule_for_url, is_suspicious_redirect
+from urllib.parse import urlparse, urlunparse
+
+from ingest.domain_rules import expand_url_variants, get_rule_for_url, host_of, is_suspicious_redirect
+from ingest.pdf_text import is_pdf_url, pdf_bytes_to_html
 
 logger = logging.getLogger(__name__)
+
+# Bu host'larda goto sıkça ERR_CONNECTION_TIMED_OUT — kısa timeout + fail-fast
+TIMEOUT_PRONE_HOSTS = frozenset(
+    {
+        "nbank.de",
+        "aufbaubank.de",
+        "bundeswirtschaftsministerium.de",
+        "bmwk.de",
+    }
+)
 
 STEALTH_ARGS = ["--disable-blink-features=AutomationControlled"]
 
 REJECT_SELECTORS = [
     'button:has-text("Nur notwendige")',
+    'button:has-text("Nur essenzielle")',
+    'button:has-text("Essenzielle Cookies")',
     'button:has-text("Ablehnen")',
     'button:has-text("Alle ablehnen")',
     'button:has-text("Webanalyse ablehnen")',
+    'button:has-text("Alles ablehnen")',
+    'a:has-text("Nur notwendige")',
 ]
 
 ACCEPT_SELECTORS = [
     'button:has-text("Akzeptieren")',
     'button:has-text("Alle akzeptieren")',
+    'button:has-text("Alle Cookies akzeptieren")',
     'button:has-text("Zustimmen")',
+    'button:has-text("Einverstanden")',
     "#cookie-accept",
+    "#sliding-popup button",
 ]
 
 CAPTCHA_SELECTORS = [
@@ -54,6 +74,14 @@ def detect_captcha(page) -> bool:
         except Exception:
             continue
     return False
+
+
+def strip_url_fragment(url: str) -> str:
+    """Hash (#...) sunucuya gitmez; Playwright'ta gereksiz ve SPA'da sorun çıkarabilir."""
+    parsed = urlparse(url)
+    if not parsed.fragment:
+        return url
+    return urlunparse(parsed._replace(fragment=""))
 
 
 def _enrich_html_with_inner_text(page, html: str, *, force: bool = False) -> str:
@@ -94,6 +122,7 @@ class PlaywrightClient:
         self._pw = None
         self._browser = None
         self._context = None
+        self._host_timeout_fails: dict[str, int] = {}
 
     def __enter__(self) -> "PlaywrightClient":
         from playwright.sync_api import sync_playwright
@@ -129,18 +158,62 @@ class PlaywrightClient:
             pass
         self._context = self._browser = self._pw = None
 
+    def _fetch_pdf(self, url: str, timeout: float) -> tuple[int, str, str] | None:
+        """PDF URL veya Download-is-starting → metin HTML. Başarısızsa None."""
+        if self._context is None:
+            return None
+        try:
+            api = self._context.request
+            resp = api.get(url, timeout=timeout * 1000, fail_on_status_code=False)
+            status = resp.status
+            body = resp.body()
+            ctype = (resp.headers.get("content-type") or "").lower()
+            if status >= 400 or not body:
+                return status if status else 0, url, ""
+            if "pdf" not in ctype and not is_pdf_url(url) and not body[:8].startswith(b"%PDF"):
+                return None
+            html = pdf_bytes_to_html(body, source_url=url)
+            if not html:
+                return 200, url, ""
+            return 200, url, html
+        except Exception as exc:
+            logger.warning("PDF fetch failed (%s): %s", url, exc.__class__.__name__)
+            return None
+
     def _fetch_once(self, page, url: str, timeout: float, *, original_url: str) -> tuple[int, str, str]:
+        url = strip_url_fragment(url)
+        original_url = strip_url_fragment(original_url)
         rule = get_rule_for_url(url) or get_rule_for_url(original_url)
         wait_until = rule.wait_until if rule else self._wait_until
         effective_timeout = timeout
         if rule and rule.fetch_timeout_sec:
             effective_timeout = max(timeout, rule.fetch_timeout_sec)
+        host = host_of(url)
+        if host in TIMEOUT_PRONE_HOSTS or any(
+            host.endswith("." + h) for h in TIMEOUT_PRONE_HOSTS
+        ):
+            # Ağ bloğu: uzun beklemeyi kes
+            effective_timeout = min(effective_timeout, 25.0)
+
+        # PDF: Playwright sıkça "Download is starting" → doğrudan binary
+        if is_pdf_url(url):
+            pdf_result = self._fetch_pdf(url, effective_timeout)
+            if pdf_result is not None:
+                return pdf_result
+
         response = None
         try:
             response = page.goto(
                 url, wait_until="domcontentloaded", timeout=effective_timeout * 1000
             )
-        except Exception:
+        except Exception as exc:
+            msg = str(exc)
+            if "Download is starting" in msg or "download" in msg.lower():
+                pdf_result = self._fetch_pdf(url, effective_timeout)
+                if pdf_result is not None:
+                    return pdf_result
+            if "ERR_CONNECTION_TIMED_OUT" in msg or "Timeout" in msg:
+                self._host_timeout_fails[host] = self._host_timeout_fails.get(host, 0) + 1
             if rule and rule.accept_partial_on_timeout:
                 try:
                     html = page.content()
@@ -189,8 +262,16 @@ class PlaywrightClient:
         if self._context is None:
             raise RuntimeError("PlaywrightClient with-blok içinde kullanılmalı")
 
+        url = strip_url_fragment(url)
+        host = host_of(url)
+        # Aynı host'ta peş peşe timeout → alternatif URL denemeyi atla
+        if self._host_timeout_fails.get(host, 0) >= 2:
+            logger.warning("Skipping %s — host already timed out %sx", host, self._host_timeout_fails[host])
+            return 0, url, ""
+
         last_result = (0, url, "")
         for attempt_url in expand_url_variants(url):
+            attempt_url = strip_url_fragment(attempt_url)
             page = self._context.new_page()
             page.add_init_script(
                 "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
@@ -207,8 +288,13 @@ class PlaywrightClient:
                 # 404 ise lowercase/alt path zaten expand_url_variants içinde
             except Exception as exc:
                 logger.warning(
-                    "Playwright fetch failed (%s): %s", attempt_url, exc.__class__.__name__
+                    "Playwright fetch failed (%s): %s: %s",
+                    attempt_url,
+                    exc.__class__.__name__,
+                    str(exc)[:160],
                 )
+                if self._host_timeout_fails.get(host, 0) >= 2:
+                    break
             finally:
                 try:
                     page.close()

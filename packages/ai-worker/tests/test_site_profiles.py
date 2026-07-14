@@ -114,3 +114,29 @@ def test_domain_rules_still_resolve_from_profiles():
     assert rule is not None
     assert rule.wait_until == "networkidle"
     assert get_site_profile("https://www.nbank.de/x") is not None
+
+
+def test_regioaktiv_root_insufficient_and_title_resolve():
+    from ingest.domain_rules import resolve_program_url
+
+    assert url_is_insufficient("https://regioaktiv.sachsen-anhalt.de/")
+    assert not url_is_insufficient(
+        "https://regioaktiv.sachsen-anhalt.de/ueber-regio-aktiv/foerderbereiche/famico"
+    )
+    mapped = resolve_program_url(
+        "https://regioaktiv.sachsen-anhalt.de/",
+        "„REGIO AKTIV“ – Familien stärken – Perspektiven eröffnen (FAMICO)",
+    )
+    assert mapped and mapped.endswith("/famico")
+    mapped_ae = resolve_program_url(
+        "https://regioaktiv.sachsen-anhalt.de/",
+        "REGIO AKTIV – Aktive Eingliederung (AE)",
+    )
+    assert mapped_ae and mapped_ae.endswith("/aktive-eingliederung")
+
+
+def test_pdf_url_helper():
+    from ingest.pdf_text import is_pdf_url
+
+    assert is_pdf_url("https://projekttraeger.dlr.de/media/x/Alter_und_Krebs.pdf")
+    assert not is_pdf_url("https://projekttraeger.dlr.de/media/x/page.html")

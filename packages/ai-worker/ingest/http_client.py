@@ -1,6 +1,8 @@
 import requests
 import urllib3
 
+from ingest.pdf_text import is_pdf_url, pdf_bytes_to_html
+
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -19,10 +21,19 @@ class HttpClient:
     def get(self, url: str, timeout: float = 60.0) -> tuple[int, str, str]:
         try:
             response = self.session.get(url, timeout=timeout, allow_redirects=True)
-            return response.status_code, response.url, response.text
         except requests.exceptions.SSLError:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
             response = self.session.get(
                 url, timeout=timeout, allow_redirects=True, verify=False
             )
-            return response.status_code, response.url, response.text
+        ctype = (response.headers.get("content-type") or "").lower()
+        content = response.content or b""
+        if (
+            "pdf" in ctype
+            or is_pdf_url(response.url)
+            or is_pdf_url(url)
+            or content[:5] == b"%PDF-"
+        ):
+            html = pdf_bytes_to_html(content, source_url=response.url)
+            return response.status_code, response.url, html
+        return response.status_code, response.url, response.text

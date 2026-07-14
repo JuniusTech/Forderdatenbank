@@ -38,8 +38,11 @@ class SiteProfile:
 SITE_PROFILES: dict[str, SiteProfile] = {
     "nbank.de": SiteProfile(
         domain="nbank.de",
-        wait_until="networkidle",
+        wait_until="domcontentloaded",
         use_inner_text_fallback=True,
+        fetch_timeout_sec=25.0,
+        extra_render_wait_ms=3000,
+        accept_partial_on_timeout=True,
         page_kind="spa",
         prefer_active_if_described=True,
         ai_hints_de=(
@@ -48,14 +51,14 @@ SITE_PROFILES: dict[str, SiteProfile] = {
             "Fehlende feste Jahresfrist ≠ unknown. Stichtag in der Zukunft → laufend.",
             "'Eine Antragsstellung ist seit dem DATUM nicht mehr möglich' → closed.",
         ),
-        notes="React SPA",
+        notes="React SPA — ağ timeout sık; fail-fast",
     ),
     "aufbaubank.de": SiteProfile(
         domain="aufbaubank.de",
         try_lowercase_on_404=True,
         use_inner_text_fallback=True,
         wait_until="networkidle",
-        fetch_timeout_sec=90.0,
+        fetch_timeout_sec=25.0,
         extra_render_wait_ms=3000,
         accept_partial_on_timeout=True,
         page_kind="program",
@@ -67,7 +70,7 @@ SITE_PROFILES: dict[str, SiteProfile] = {
             "'Mittel ausgeschöpft' / 'Derzeit nicht möglich' → closed.",
             "Fehlende Frist ≠ unknown.",
         ),
-        notes="Part2: Archiv-PDFs ≠ closed; long timeout",
+        notes="Part2 + fail-fast timeout (ağ bloğu)",
     ),
     "lfa.de": SiteProfile(
         domain="lfa.de",
@@ -90,23 +93,36 @@ SITE_PROFILES: dict[str, SiteProfile] = {
     "schleswig-holstein.de": SiteProfile(
         domain="schleswig-holstein.de",
         use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
         page_kind="ministry_overview",
         prefer_active_if_described=True,
-        insufficient_path_markers=("vi_node", "viii_node", "/vi_node", "/viii_node"),
+        insufficient_path_markers=(
+            "vi_node",
+            "viii_node",
+            "/vi_node",
+            "/viii_node",
+            "v_node.html",
+            "ld_node.html",
+        ),
         ai_hints_de=(
-            "vi_node/viii_node = Ministeriums-Startseite (News) — NIE canonical, status eher unknown.",
+            "vi_node/viii_node/v_node/ld_node = Ministeriums-Startseite (News) — NIE canonical, status eher unknown.",
             "fachinhalte/... URLs können echte Programmseiten sein — Titel-Content-Match prüfen.",
             "Richtlinie mit Jahresangabe z.B. (2024-2028) → laufend.",
             "Fehlende Antragsfrist bei Landesprogrammen ist normal → eher active als unknown.",
+            "Cookie-Banner-Text allein ≠ Programminhalt — innerText nach dismiss lesen.",
         ),
         notes="Claude site-structure: vi_node/viii_node wrong_url",
     ),
     "hamburg.de": SiteProfile(
         domain="hamburg.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
         page_kind="program_detail",
         prefer_active_if_described=True,
+        root_insufficient=True,
         ai_hints_de=(
-            "hamburg.de Fachseiten (bsfb etc.): alte URLs redirecten oft korrekt — Inhalt nutzen.",
+            "hamburg.de Root (/) = Portal — NIE als Programmnachweis.",
+            "hamburg.de Fachseiten (bsb, drogenberatung-suchthilfe etc.): alte URLs redirecten oft korrekt — Inhalt nutzen.",
             "Antragsverfahren + Formulare + Richtlinie ohne Schließung → active.",
             "Fehlende Frist ≠ unknown.",
         ),
@@ -151,15 +167,33 @@ SITE_PROFILES: dict[str, SiteProfile] = {
     ),
     "lvwa.sachsen-anhalt.de": SiteProfile(
         domain="lvwa.sachsen-anhalt.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2500,
         page_kind="program_detail",
         prefer_active_if_described=True,
+        root_insufficient=True,
         ai_hints_de=(
             "LVWA Maßnahmenseiten: Gegenstand/Antragsberechtigte/Förderhöhe/Unterlagen — gut strukturiert.",
             "Maßnahmentext + Antragsformular ohne Schließung → active.",
+            "Nur /das-lvwa/ Root = Portal — NIE als Programmnachweis.",
             "Nur Qualitätskriterien-PDF ohne Förderhöhe/Antrag → unknown.",
             "Fehlende Frist ≠ unknown.",
         ),
         notes="Wait 1-2s nach Navigation (stale text)",
+    ),
+    "mwl.sachsen-anhalt.de": SiteProfile(
+        domain="mwl.sachsen-anhalt.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2500,
+        page_kind="program_detail",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "MWL Sachsen-Anhalt: Förderübersichten (Tourismus, Forst, Landwirtschaft) — Unterseiten prüfen.",
+            "Programmbeschreibung + Antrag ohne Schließung → active/laufend.",
+            "Nur Navigationsmenü ohne Maßnahmentext → unknown.",
+            "Fehlende Frist bei Dauerförderung ≠ unknown.",
+        ),
+        notes="SA MWL — innerText",
     ),
     "umwelt.nrw.de": SiteProfile(
         domain="umwelt.nrw.de",
@@ -196,12 +230,17 @@ SITE_PROFILES: dict[str, SiteProfile] = {
     ),
     "soziales.niedersachsen.de": SiteProfile(
         domain="soziales.niedersachsen.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2500,
+        wait_until="networkidle",
         page_kind="program_detail",
         prefer_active_if_described=True,
+        root_insufficient=True,
         ai_hints_de=(
             "Nds. Soziales: oft Redirect von Kurz-Slug; networkidle abwarten.",
             "Wiederkehrende Jahresfrist (z.B. 31. März) = Dauerförderung → active, nicht closed.",
             "Richtlinie Neufassung / aktueller Verwendungsnachweis → active.",
+            "Nur Root soziales.niedersachsen.de ohne Programmpfad → unknown.",
             "Nur allgemeine Themeneseite ohne Programmbezug → unknown.",
         ),
         notes="Part2: Jahresfrist ≠ Ende",
@@ -315,6 +354,101 @@ SITE_PROFILES: dict[str, SiteProfile] = {
         ),
         notes="Part2: shared_url Hub — Bullet-Links folgen",
     ),
+    "projekttraeger.dlr.de": SiteProfile(
+        domain="projekttraeger.dlr.de",
+        use_inner_text_fallback=True,
+        wait_until="networkidle",
+        extra_render_wait_ms=2500,
+        page_kind="program_detail",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "DLR Projektträger: Cookie-Banner oft — Inhalt danach lesen.",
+            "Programmtitel + Förderaufruf / Richtlinie / Skizze ohne Schließung → active.",
+            "Nur Navigationshülle oder Cookie-Text → unknown.",
+            "Abgelaufene Einreichungsfrist explizit → closed/laufend je nach Datum.",
+            "Fehlende Frist bei laufenden PT-Programmen ≠ unknown.",
+        ),
+        notes="Cookie + JS; kalan unknown batch",
+    ),
+    "bra.nrw.de": SiteProfile(
+        domain="bra.nrw.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
+        page_kind="program_detail",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "Bezirksregierung Köln/Arnsberg-Seiten: Matomo-Cookie zuerst dismissen.",
+            "Finanzielle Förderung / Antragsunterlagen ohne Schließung → active.",
+            "Nur Seitentitel ohne Körper → unknown.",
+            "Fehlende Jahresfrist ≠ unknown.",
+        ),
+        notes="NRW BRA — innerText",
+    ),
+    "efre.nrw.de": SiteProfile(
+        domain="efre.nrw.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
+        page_kind="program_detail",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "EFRE.NRW Förderseiten 2021-2027: Programmbeschreibung ohne Enddatum → active/laufend.",
+            "Aufruf geschlossen / Mittel ausgeschöpft → closed.",
+            "Nur Teaser ohne Antragsweg → unknown.",
+        ),
+        notes="EFRE NRW",
+    ),
+    "mhkbd.nrw": SiteProfile(
+        domain="mhkbd.nrw",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
+        page_kind="program_detail",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "MHKBD NRW: Wohnraum-/Denkmalförderung oft Dauerinstrument ohne feste Frist → active.",
+            "Richtlinie + Antragsverfahren ohne Schließung → active.",
+            "Nur Titel/Teaser → unknown.",
+        ),
+        notes="MHKBD NRW",
+    ),
+    "regioaktiv.sachsen-anhalt.de": SiteProfile(
+        domain="regioaktiv.sachsen-anhalt.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2500,
+        page_kind="program_detail",
+        prefer_active_if_described=True,
+        root_insufficient=True,
+        ai_hints_de=(
+            "regioaktiv: ESF+/Land Sachsen-Anhalt Förderbereiche 2021–2027.",
+            "Förderbereich-Detailseite (AE, FAMICO, STABIL, …) ohne Schließung → active/laufend.",
+            "Nur Portal-Startseite ohne Programmtexte → unknown (root).",
+            "Übersicht /foerderbereiche listet aktive Bereiche — laufendes Landesprogramm → laufend/active.",
+        ),
+        notes="Title→Förderbereich URL via resolve_program_url",
+    ),
+    "foerderportal.bund.de": SiteProfile(
+        domain="foerderportal.bund.de",
+        use_inner_text_fallback=True,
+        page_kind="spa_shell",
+        prefer_active_if_described=False,
+        ai_hints_de=(
+            "foerderportal.bund.de / easyOnline oft Login oder 403 — ohne Programminhalt → unknown.",
+            "Nicht active raten nur wegen Portal-Domain.",
+        ),
+        notes="Bund portal — 403/login sık",
+    ),
+    "saarland.de": SiteProfile(
+        domain="saarland.de",
+        use_inner_text_fallback=True,
+        extra_render_wait_ms=2000,
+        page_kind="ministry_overview",
+        prefer_active_if_described=True,
+        ai_hints_de=(
+            "saarland.de: oft 403 oder Ministeriums-Übersicht — Inhalt prüfen.",
+            "Konkrete Richtlinie/Antrag ohne Schließung → active.",
+            "Nur Behörden-Home → unknown.",
+        ),
+        notes="Saarland — 403 riski",
+    ),
 }
 
 
@@ -360,6 +494,12 @@ def url_is_insufficient(url: str) -> bool:
         return path_l.endswith("/foerderfonds") and "projektantraege" not in path_l
     if domain == "umwelt.nrw.de":
         return path in {"/", ""}
+    if domain == "lvwa.sachsen-anhalt.de":
+        if path.rstrip("/") in {"/das-lvwa", ""}:
+            return True
+        if path.rstrip("/").endswith("/das-lvwa"):
+            return True
+        return False
     if profile.root_insufficient and path in {"/", ""}:
         return True
     for marker in profile.insufficient_path_markers:
@@ -409,7 +549,15 @@ def title_mentioned_in_text(title: str, text: str) -> bool:
         return False
     hay = text.lower()
     hits = sum(1 for w in words[:6] if w.lower() in hay)
-    return hits >= min(2, len(words[:6]))
+    if hits >= min(2, len(words[:6])):
+        return True
+    # REGIO AKTIV Familienmarke: Untermaßnahme-Titel oft nur auf Übersicht
+    title_l = title.lower().replace("?", " ")
+    if "regio" in title_l and "aktiv" in title_l and (
+        "regio aktiv" in hay or "förderbereich" in hay or "foerderbereich" in hay
+    ):
+        return True
+    return False
 
 
 def page_has_program_substance(text: str) -> bool:
@@ -427,12 +575,18 @@ def page_has_program_substance(text: str) -> bool:
         "programm",
         "zuwendung",
         "bewillig",
+        "förderbereich",
+        "zielgruppe",
+        "esf",
+        "bewerbung",
     )
     low = text.lower()
     # Saf navigasyon/menü sayfalarını ele: az marker + kısa gövde
     hits = sum(1 for m in markers if m in low)
     if hits < 3:
-        return False
+        # Förderbereich-Übersichten: oft nur 2 Marker (förder + förderbereich)
+        if not (hits >= 2 and "förderbereich" in low and len(text) >= 600):
+            return False
     nav_noise = sum(
         1
         for n in ("impressum", "datenschutz", "cookie", "navigation", "menü", "sitemap")
