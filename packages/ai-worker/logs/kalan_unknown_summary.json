@@ -1,11 +1,11 @@
 {
-  "exported_at": "2026-07-14T19:49:35.007861+00:00",
-  "total": 584,
+  "exported_at": "2026-07-14T20:21:31.987881+00:00",
+  "total": 552,
   "buckets": {
-    "ollama_stuck": 429,
-    "wrong_url": 27,
+    "ollama_stuck": 419,
     "http403": 6,
     "http0": 119,
+    "wrong_url": 5,
     "regex_stuck": 3
   },
   "top_hosts": [
@@ -16,10 +16,6 @@
     [
       "aufbaubank.de",
       23
-    ],
-    [
-      "schleswig-holstein.de",
-      21
     ],
     [
       "foerderportal.bund.de",
@@ -38,10 +34,6 @@
       9
     ],
     [
-      "foerderportal.wibank.de",
-      8
-    ],
-    [
       "esf-bavaria.de",
       6
     ],
@@ -56,10 +48,6 @@
     [
       "ksv-sachsen.de",
       6
-    ],
-    [
-      "lfa.de",
-      5
     ],
     [
       "sikb.de",
@@ -128,6 +116,18 @@
     [
       "bra.nrw.de",
       4
+    ],
+    [
+      "berlin.de",
+      3
+    ],
+    [
+      "ibg-vc.de",
+      3
+    ],
+    [
+      "sozialministerium.baden-wuerttemberg.de",
+      3
     ]
   ],
   "bucket_top_hosts": {
@@ -225,10 +225,6 @@
         13
       ],
       [
-        "schleswig-holstein.de",
-        11
-      ],
-      [
         "regierung-mv.de",
         9
       ],
@@ -275,6 +271,10 @@
       [
         "bfn.de",
         4
+      ],
+      [
+        "hamburg.de",
+        4
       ]
     ],
     "regex_stuck": [
@@ -293,18 +293,6 @@
     ],
     "wrong_url": [
       [
-        "schleswig-holstein.de",
-        10
-      ],
-      [
-        "foerderportal.wibank.de",
-        8
-      ],
-      [
-        "lfa.de",
-        4
-      ],
-      [
         "portal.nbank.de",
         3
       ],
@@ -320,6 +308,6 @@
   },
   "monitor_log": "logs\\live_monitor.jsonl",
   "out_jsonl": "kalan_unknown.jsonl",
-  "with_prior_check": 584,
+  "with_prior_check": 552,
   "without_prior_check": 0
 }
